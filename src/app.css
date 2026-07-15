@@ -1,0 +1,261 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn-svelte/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.985 0 0);
+  --workspace: oklch(0.975 0.001 286.375);
+  --panel: oklch(0.992 0 0);
+  --titlebar: oklch(0.967 0.001 286.375);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(0.995 0.001 286.3);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(0.995 0.001 286.3);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.955 0.002 286.33);
+  --muted-foreground: oklch(0.47 0.014 285.9);
+  --accent: oklch(0.95 0.002 286.32);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --radius: 0.75rem;
+  --sidebar: oklch(0.96 0.002 286.34);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.925 0.004 286.32);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --signal: oklch(0.623 0.214 259.815);
+  --status-success: oklch(0.535 0.145 152.1);
+  --status-warning: oklch(0.615 0.155 74.4);
+  --status-error: oklch(0.56 0.205 27.3);
+  --status-info: var(--signal);
+  --app-backdrop: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--workspace) 96%, var(--signal) 4%) 0%,
+    var(--background) 46%,
+    color-mix(in oklab, var(--workspace) 97%, var(--foreground) 3%) 100%
+  );
+  --workspace-surface: linear-gradient(
+    145deg,
+    color-mix(in oklab, var(--workspace) 98%, white 2%) 0%,
+    color-mix(in oklab, var(--workspace) 97%, var(--signal) 3%) 54%,
+    var(--workspace) 100%
+  );
+  --project-rail-surface: linear-gradient(
+    165deg,
+    color-mix(in oklab, var(--sidebar) 96%, white 4%) 0%,
+    var(--sidebar) 52%,
+    color-mix(in oklab, var(--sidebar) 98%, var(--workspace) 2%) 100%
+  );
+  --module-rail-surface: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--panel) 97%, white 3%) 0%,
+    var(--panel) 56%,
+    color-mix(in oklab, var(--panel) 96%, var(--workspace) 4%) 100%
+  );
+  --titlebar-surface: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--titlebar) 96%, white 4%),
+    var(--titlebar)
+  );
+  --panel-border: color-mix(in oklab, var(--border) 86%, var(--foreground) 14%);
+  --diagram-surface: #fbfbfc;
+  --diagram-node: #f4f4f5;
+  --diagram-text: #18181b;
+  --diagram-border: #d4d4d8;
+  --diagram-line: #71717a;
+  --editor-background: #fbfbfc;
+  --editor-foreground: #27272a;
+  --editor-line-number: #8b8b96;
+  --editor-line-number-active: #3f3f46;
+  --editor-line-highlight: #f1f5fb;
+  --editor-selection: #b8d7ff99;
+  --editor-selection-inactive: #d7e7fa99;
+  --editor-reference: #65a1ff;
+  --panel-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 70%), 0 1px 2px rgb(24 24 27 / 7%),
+    0 10px 30px rgb(24 24 27 / 5%);
+  --dialog-shadow: 0 24px 80px rgb(24 24 27 / 18%), 0 4px 14px rgb(24 24 27 / 8%);
+  --app-font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+  --app-font-mono: 'SFMono-Regular', 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+  color-scheme: light;
+}
+
+.dark {
+  --background: oklch(0.205 0.006 285.9);
+  --workspace: oklch(0.19 0.006 285.9);
+  --panel: oklch(0.215 0.006 285.9);
+  --titlebar: oklch(0.18 0.005 285.85);
+  --foreground: oklch(0.94 0.002 286.3);
+  --card: oklch(0.24 0.006 285.9);
+  --card-foreground: oklch(0.94 0.002 286.3);
+  --popover: oklch(0.255 0.006 285.9);
+  --popover-foreground: oklch(0.94 0.002 286.3);
+  --primary: oklch(0.93 0.002 286.3);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.295 0.006 286.03);
+  --secondary-foreground: oklch(0.94 0.002 286.3);
+  --muted: oklch(0.285 0.006 286.02);
+  --muted-foreground: oklch(0.74 0.012 286.05);
+  --accent: oklch(0.3 0.006 286.03);
+  --accent-foreground: oklch(0.94 0.002 286.3);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 18%);
+  --ring: oklch(0.62 0.02 258);
+  --sidebar: oklch(0.195 0.005 285.85);
+  --sidebar-foreground: oklch(0.94 0.002 286.3);
+  --sidebar-primary: oklch(0.93 0.002 286.3);
+  --sidebar-primary-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-accent: oklch(0.25 0.006 286);
+  --sidebar-accent-foreground: oklch(0.94 0.002 286.3);
+  --sidebar-border: oklch(1 0 0 / 11%);
+  --sidebar-ring: oklch(0.62 0.02 258);
+  --signal: oklch(0.707 0.165 254.624);
+  --status-success: oklch(0.72 0.15 155.5);
+  --status-warning: oklch(0.78 0.145 78.4);
+  --status-error: oklch(0.705 0.18 24.2);
+  --status-info: var(--signal);
+  --app-backdrop: linear-gradient(
+    135deg,
+    color-mix(in oklab, var(--workspace) 96%, var(--signal) 4%) 0%,
+    var(--background) 48%,
+    color-mix(in oklab, var(--workspace) 96%, white 4%) 100%
+  );
+  --workspace-surface: linear-gradient(
+    145deg,
+    color-mix(in oklab, var(--workspace) 88%, white 12%) 0%,
+    color-mix(in oklab, var(--workspace) 97%, var(--signal) 3%) 55%,
+    var(--workspace) 100%
+  );
+  --project-rail-surface: linear-gradient(
+    165deg,
+    color-mix(in oklab, var(--sidebar) 92%, white 8%) 0%,
+    var(--sidebar) 50%,
+    color-mix(in oklab, var(--sidebar) 97%, var(--signal) 3%) 100%
+  );
+  --module-rail-surface: linear-gradient(
+    150deg,
+    color-mix(in oklab, var(--panel) 94%, white 6%) 0%,
+    var(--panel) 56%,
+    color-mix(in oklab, var(--panel) 97%, var(--signal) 3%) 100%
+  );
+  --titlebar-surface: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--titlebar) 95%, white 5%),
+    var(--titlebar)
+  );
+  --panel-border: color-mix(in oklab, var(--border) 78%, white 22%);
+  --diagram-surface: #26262b;
+  --diagram-node: #35353c;
+  --diagram-text: #f1f1f3;
+  --diagram-border: #5f5f69;
+  --diagram-line: #aaaab3;
+  --editor-background: #202024;
+  --editor-foreground: #e4e4e7;
+  --editor-line-number: #777782;
+  --editor-line-number-active: #d4d4d8;
+  --editor-line-highlight: #29292f;
+  --editor-selection: #315a8a66;
+  --editor-selection-inactive: #315a8a3d;
+  --editor-reference: #65a1ff;
+  --panel-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 7%), 0 1px 2px rgb(9 9 12 / 28%), 0 14px 34px rgb(9 9 12 / 22%);
+  --dialog-shadow: 0 26px 90px rgb(9 9 12 / 56%), 0 4px 16px rgb(9 9 12 / 36%);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --font-sans: var(--app-font-sans);
+  --font-mono: var(--app-font-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-status-success: var(--status-success);
+  --color-status-warning: var(--status-warning);
+  --color-status-error: var(--status-error);
+  --color-status-info: var(--status-info);
+  --radius-sm: calc(var(--radius) * 0.65);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.25);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html,
+  body {
+    min-width: 1100px;
+    min-height: 100%;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-size: 14px;
+    font-optical-sizing: auto;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: auto;
+    -moz-osx-font-smoothing: auto;
+  }
+
+  button,
+  input {
+    font-family: inherit;
+    letter-spacing: 0;
+  }
+}
+
+::selection {
+  color: white;
+  background: var(--signal);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *:not(svg):not(svg *),
+  *:not(svg):not(svg *)::before,
+  *:not(svg):not(svg *)::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
