@@ -1,0 +1,12 @@
+interface:
+  display_name: "Inspector Sync"
+  short_description: "Refresh inspector evidence without ID churn"
+  default_prompt: "Use $inspector-sync to refresh the selected inspector scope."
+policy:
+  allow_implicit_invocation: false
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "vibe-inspector"
+      description: "Authenticated local VibeInspector project and command tools"
+      transport: "stdio"

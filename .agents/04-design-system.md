@@ -1,0 +1,124 @@
+# VibeInspector Design System
+
+## Design read
+
+VibeInspector is a professional developer workbench for senior engineers and technical leads. It should feel closer to a precise native inspector or database tool than a consumer dashboard.
+
+Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
+
+## 1. Visual direction
+
+- Zinc is the dominant palette in light and dark modes.
+- Blue is a narrow signal for selection, focused evidence, and links; it is not a page theme.
+- Green, amber, and red appear only for semantic status.
+- Use four restrained Zinc layers for the titlebar, project rail, module rail, and workspace so dark mode never collapses into one near-black plane.
+- Crisp borders and spacing define structure. Rounded containers must retain a precise 1px edge so the application feels engineered rather than soft or inflated.
+- Independent tool surfaces use one shared low-contrast shadow token plus a subtle inner highlight. Shadows communicate hierarchy and must not appear on every row.
+- Use an 8-12px radius scale for framed tools and 6-8px for compact controls. Pill shapes remain reserved for status indicators.
+- A low-contrast Zinc-on-Zinc gradient may span the workspace to prevent a flat single-plane background. It must remain subordinate to content and work in both themes.
+- No colorful gradient blobs, glass, glow, decorative background shapes, nested cards, oversized headings, or marketing composition.
+
+## 2. Layout
+
+- Baseline window: `1440x900`; minimum: `1100x680`.
+- Reserve a `38px` overlay titlebar at the top of the webview. It contains the centered application title and the global theme action; the top-left traffic-light area stays free of app controls.
+- Do not repeat the application brand in the project rail or add a second full-width page titlebar below the system titlebar. Project/module context belongs with the selected flow heading.
+- Project rail: `216px`, collapsible to `56px`.
+- Module rail: `280px`, collapsible to `48px`.
+- Inspector: `minmax(0, 1fr)` with independently scrolling content.
+- The inspector has no overview/code tabs. It is divided vertically into an upper architecture band and a lower source evidence band.
+- The upper band contains one Mermaid diagram surface and one un-nested rationale panel.
+- The lower band contains one `220-240px` file rail and a read-only Monaco surface; the minimum-width desktop breakpoint may reduce the rail to `200px`.
+- Keep stable heights and widths so selection, loading, labels, and status do not shift the shell.
+- First launch uses a focused setup workspace, not a marketing landing page. Codex history is a privacy-scoped discovery row, followed by two directory command rows and an explicit candidate review step.
+
+## 3. Zinc tokens
+
+`src/app.css` is the token source of truth. Use semantic variables rather than direct zinc hex values in reusable components:
+
+```css
+--background;
+--workspace;
+--panel;
+--titlebar;
+--foreground;
+--card;
+--muted;
+--muted-foreground;
+--border;
+--input;
+--ring;
+--sidebar;
+--sidebar-accent;
+--signal;
+--status-success;
+--status-warning;
+--status-error;
+--status-info;
+--app-backdrop;
+--workspace-surface;
+--project-rail-surface;
+--module-rail-surface;
+--titlebar-surface;
+--panel-border;
+--panel-shadow;
+--dialog-shadow;
+```
+
+The dark default uses adjacent Zinc 900-950 values rather than pure or near-pure black: the titlebar and project rail are deepest, the module rail is slightly raised, the workspace is quieter, and framed tools are lightest. Light mode uses Zinc 50/100 structure with white tools. `--signal` is the only non-semantic blue. Workspace gradients interpolate only between adjacent Zinc surfaces and may mix no more than a trace of `--signal`.
+
+## 4. Typography
+
+- UI font: macOS system stack (`-apple-system`, `SF Pro Text`, then `Helvetica Neue`). This is the default because the product is macOS-only and benefits from native optical sizing and rasterization.
+- Code, paths, hashes, and line ranges: SF Mono / JetBrains Mono / `ui-monospace`.
+- Rail text: 11-13px; body and controls: 13-14px; metadata: 10px minimum; page title: 24px maximum.
+- Letter spacing is zero except tiny uppercase metadata where scanning materially improves.
+- Do not force grayscale font smoothing. Use platform-default smoothing and `font-optical-sizing: auto`.
+- Truncate paths and branch names; expose the full value through title or tooltip.
+
+## 5. Component ownership
+
+| Surface                                               | Component source                                                         |
+| ----------------------------------------------------- | ------------------------------------------------------------------------ |
+| Buttons, badges, input, checkbox, separator, skeleton | shadcn-svelte local components                                           |
+| Dialogs, scroll areas, tooltips, dropdowns            | shadcn-svelte wrappers backed by Bits UI                                 |
+| Icons                                                 | `@lucide/svelte`                                                         |
+| Project/module rows                                   | Domain components composed from shadcn tokens                            |
+| Flow nodes/edges                                      | Mermaid through `src/lib/adapters/diagram.ts` and a local Svelte adapter |
+| Code                                                  | Local Monaco adapter, always read-only                                   |
+
+Do not recreate a shadcn control inside a feature directory. Do not put VibeInspector domain assumptions into `src/lib/components/ui`.
+
+## 6. Interaction rules
+
+- Every icon-only button has an accessible label and tooltip/title.
+- Keyboard focus uses `--ring`; focus must remain visible on Zinc surfaces.
+- Selected rows use a restrained muted fill plus border; never a saturated full-row color.
+- Project status dots align to the same right-hand action axis as the project rail add button.
+- Hover changes background or foreground only; no large translate/scale movement.
+- Preserve the selected project, module, flow, and file across refreshes.
+- Respect `prefers-reduced-motion`; ordinary transitions stay within 120-180ms.
+- Inline errors remain next to the affected scope; toast is only for transient confirmation.
+
+## 7. Diagram and editor
+
+- Mermaid is the only flow renderer. Domain entities keep renderer-neutral nodes and edges; the adapter generates safe Mermaid syntax with generated node aliases and escaped labels.
+- Mermaid uses `securityLevel: 'strict'`, loads dynamically in the browser, and re-renders when the application theme changes.
+- Diagram surfaces, nodes, borders, labels, and edges use the Zinc diagram tokens in `src/app.css`. Blue is not used as a general edge color.
+- The diagram has compact zoom controls, no ornamental legend, and may scroll horizontally when a narrow window cannot fit the graph.
+- The rationale is readable at `45-60ch` and explains architectural tradeoffs, not implementation narration.
+- Rationale body text is at least `12px` in the desktop baseline. Confidence and metadata may be smaller, but never determine the reading size.
+- Monaco uses `readOnly` and `domReadOnly`, disables context editing, hides the minimap, and highlights referenced lines.
+- File rows show name, path, and line range with clear selected/stale states.
+- The source rail is a keyboard-accessible hierarchical tree. Folders sort before files and repeated ranges for one file are aggregated.
+
+## 8. Secondary surfaces
+
+- Activity, settings, MCP health, and keyboard help use shadcn dialogs backed by Bits UI focus management.
+- Settings use a compact segmented theme control, real tray/MCP socket health, and a checkbox for the LaunchAgent login item.
+- Service state is never inferred from the desktop window and the browser preview reports services as unavailable rather than fabricating an online state.
+- Loading dialogs and the initial shell use shape-preserving shadcn Skeleton components rather than centered spinners.
+
+## 9. Visual QA
+
+Verify `1440x900` and `1100x680`, light/dark, expanded/collapsed rails, long labels, nonblank Mermaid output, upper/lower band sizing, source switching, empty/error/loading states, and reduced motion. There must be no overlaps, clipped actions, illegible Zinc contrast, unexpected layout shifts, or browser console errors.
