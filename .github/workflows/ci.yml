@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos-quality:
+    runs-on: macos-14
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run check
+      - run: pnpm run test
+      - run: pnpm run build
+      - run: pnpm run check:bundle-budget
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path src-tauri/Cargo.toml
+      - run: pnpm tauri build --debug --bundles app --no-sign --ci
+      - run: test -x src-tauri/target/debug/bundle/macos/VibeInspector.app/Contents/MacOS/vibe-inspector-tray
+      - run: test -x src-tauri/target/debug/bundle/macos/VibeInspector.app/Contents/MacOS/vibe-inspector-mcp
+      - run: otool -hv src-tauri/target/debug/bundle/macos/VibeInspector.app/Contents/MacOS/vibe-inspector-tray
+      - run: otool -hv src-tauri/target/debug/bundle/macos/VibeInspector.app/Contents/MacOS/vibe-inspector-mcp
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VibeInspector-debug-app
+          path: src-tauri/target/debug/bundle/macos/VibeInspector.app
+          if-no-files-found: error
