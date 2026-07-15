@@ -1,0 +1,9 @@
+node_modules/
+.svelte-kit/
+build/
+output/
+.playwright-cli/
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/
+.DS_Store
