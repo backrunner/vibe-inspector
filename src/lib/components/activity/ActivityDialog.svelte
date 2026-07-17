@@ -22,11 +22,15 @@
       <div class="activity-loading" aria-label="Loading activity" aria-busy="true">
         <Skeleton class="h-10 w-full rounded-none" />
         {#each [1, 2, 3, 4] as row}
-          <div><Skeleton class="size-2 rounded-full" /><span><Skeleton class="h-3 w-40" /><Skeleton class="h-2.5 w-24" /></span><Skeleton class="h-3 w-20" /></div>
+          <div>
+            <Skeleton class="size-2 rounded-full" /><span
+              ><Skeleton class="h-3 w-40" /><Skeleton class="h-2.5 w-24" /></span
+            ><Skeleton class="h-3 w-20" />
+          </div>
         {/each}
       </div>
     {:else if store.activityStatus === 'error'}
-      <div class="activity-state error">
+      <div class="activity-state error app-state-fill">
         <TriangleAlert /><span>{store.activityError}</span>
       </div>
     {:else}
@@ -36,7 +40,7 @@
             <TerminalSquare /><strong>Agent commands</strong><span>{store.commandRuns.length}</span>
           </header>
           {#if store.commandRuns.length === 0}
-            <p class="empty-row">No command activity for this project.</p>
+            <p class="empty-row app-state-fill">No command activity for this project.</p>
           {:else}
             <div class="activity-rows">
               {#each store.commandRuns as run (run.requestId)}
@@ -61,7 +65,7 @@
             <Database /><strong>MCP audit</strong><span>{store.auditEvents.length}</span>
           </header>
           {#if store.auditEvents.length === 0}
-            <p class="empty-row">No MCP calls recorded for this project.</p>
+            <p class="empty-row app-state-fill">No MCP calls recorded for this project.</p>
           {:else}
             <div class="activity-rows">
               {#each store.auditEvents as event (event.id)}
@@ -97,10 +101,7 @@
   }
 
   .activity-state {
-    display: flex;
-    min-height: 220px;
-    align-items: center;
-    justify-content: center;
+    min-height: var(--state-min-height);
     gap: 8px;
     color: var(--muted-foreground);
     font-size: 12px;
@@ -247,9 +248,12 @@
 
   .empty-row {
     margin: 0;
-    padding: 22px 18px;
+    min-height: 132px;
     color: var(--muted-foreground);
     font-size: 12px;
   }
 
+  .activity-section:has(> .empty-row) {
+    min-height: 174px;
+  }
 </style>

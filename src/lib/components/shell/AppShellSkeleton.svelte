@@ -48,11 +48,11 @@
   }
 
   .project-placeholder {
-    background: var(--project-rail-surface);
+    background: transparent;
   }
 
   .module-placeholder {
-    background: var(--module-rail-surface);
+    background: transparent;
   }
 
   .project-placeholder > header,

@@ -210,19 +210,19 @@
     Codex discovery reads project paths and conversation IDs, never message content.
   </p>
 {:else if step === 'scanning'}
-  <div class="state-view" aria-live="polite">
+  <div class="state-view app-state-fill" aria-live="polite">
     <span class="state-icon scanning"><Search strokeWidth={1.7} /></span>
     <strong>Looking for project roots</strong>
     <span>Checking repository and workspace markers.</span>
   </div>
 {:else if step === 'registering'}
-  <div class="state-view" aria-live="polite" aria-busy="true">
+  <div class="state-view app-state-fill" aria-live="polite" aria-busy="true">
     <span class="state-icon scanning"><FolderPlus strokeWidth={1.7} /></span>
     <strong>Adding projects</strong>
     <span>Saving the selected repositories to your local workspace.</span>
   </div>
 {:else if step === 'error'}
-  <div class="state-view" role="alert">
+  <div class="state-view app-state-fill" role="alert">
     <span class="state-icon error"><TriangleAlert strokeWidth={1.7} /></span>
     <strong
       >{errorKind === 'registration' ? 'Could not add projects' : 'Could not scan projects'}</strong
@@ -242,7 +242,7 @@
   </div>
 {:else if result}
   {#if result.candidates.length === 0}
-    <div class="state-view compact">
+    <div class="state-view compact app-state-fill">
       <span class="state-icon"><Search strokeWidth={1.7} /></span>
       <strong>No projects found</strong>
       <span>Choose a different folder or add one project directly.</span>
@@ -418,10 +418,7 @@
   }
 
   .state-view {
-    display: grid;
-    min-height: 240px;
-    place-items: center;
-    align-content: center;
+    min-height: var(--state-min-height);
     gap: 8px;
     text-align: center;
   }

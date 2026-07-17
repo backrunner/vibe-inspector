@@ -184,82 +184,90 @@
 <aside class="source-tree" aria-label="Referenced files">
   <header><strong>Files</strong><span>{fileCount}</span></header>
   <div class="tree-scroll">
-    <div class="tree" role="tree" aria-label="Source file tree" bind:this={treeRoot}>
-      {#each visibleNodes as item (itemId(item))}
-        {#if item.kind === 'range'}
-          {@const detail = rangeDetail(item.ref)}
-          <button
-            type="button"
-            class:selected={item.ref.id === selectedRefId}
-            class:stale={item.ref.status !== 'current'}
-            class="tree-row range-row"
-            style:--tree-depth={item.depth}
-            role="treeitem"
-            aria-level={item.depth + 1}
-            aria-selected={item.ref.id === selectedRefId}
-            tabindex={itemId(item) === activeTreeItemId ? 0 : -1}
-            data-tree-id={itemId(item)}
-            title={`${item.file.path}:${item.ref.startLine}-${item.ref.endLine}`}
-            onclick={() => onselect(item.ref.id)}
-            onkeydown={(event) => handleKeydown(event, item)}
-          >
-            <span class="range-branch" aria-hidden="true"></span>
-            <span class="range-label">L{item.ref.startLine}-{item.ref.endLine}</span>
-            {#if detail}<small>{detail}</small>{/if}
-          </button>
-        {:else if item.node.kind === 'folder'}
-          <button
-            type="button"
-            class="tree-row folder-row"
-            style:--tree-depth={item.depth}
-            role="treeitem"
-            aria-level={item.depth + 1}
-            aria-expanded={isExpanded(item.node.id)}
-            aria-selected="false"
-            tabindex={itemId(item) === activeTreeItemId ? 0 : -1}
-            data-tree-id={item.node.id}
-            title={item.node.path}
-            onclick={() => toggleNode(item.node.id)}
-            onkeydown={(event) => handleKeydown(event, item)}
-          >
-            <ChevronRight class={`disclosure${isExpanded(item.node.id) ? ' expanded' : ''}`} />
-            {#if isExpanded(item.node.id)}
-              <FolderOpen class="tree-icon" strokeWidth={1.7} />
-            {:else}
-              <Folder class="tree-icon" strokeWidth={1.7} />
-            {/if}
-            <span>{item.node.name}</span>
-          </button>
-        {:else}
-          <button
-            type="button"
-            class:context={item.node.refs.length > 1 && item.node.id === selectedFileId}
-            class:selected={item.node.refs.length === 1 && item.node.id === selectedFileId}
-            class:stale={item.node.refs.some((ref) => ref.status !== 'current')}
-            class="tree-row file-row"
-            style:--tree-depth={item.depth}
-            role="treeitem"
-            aria-level={item.depth + 1}
-            aria-expanded={item.node.refs.length > 1 ? isExpanded(item.node.id) : undefined}
-            aria-selected={item.node.refs.length === 1 && item.node.id === selectedFileId}
-            tabindex={itemId(item) === activeTreeItemId ? 0 : -1}
-            data-tree-id={item.node.id}
-            title={item.node.path}
-            onclick={() => selectFile(item.node)}
-            onkeydown={(event) => handleKeydown(event, item)}
-          >
-            {#if item.node.refs.length > 1}
+    {#if visibleNodes.length === 0}
+      <div class="source-tree-empty app-state-fill">
+        <FileCode2 class="size-4" strokeWidth={1.7} aria-hidden="true" />
+        <strong>No source references</strong>
+        <span>This flow has no linked files.</span>
+      </div>
+    {:else}
+      <div class="tree" role="tree" aria-label="Source file tree" bind:this={treeRoot}>
+        {#each visibleNodes as item (itemId(item))}
+          {#if item.kind === 'range'}
+            {@const detail = rangeDetail(item.ref)}
+            <button
+              type="button"
+              class:selected={item.ref.id === selectedRefId}
+              class:stale={item.ref.status !== 'current'}
+              class="tree-row range-row"
+              style:--tree-depth={item.depth}
+              role="treeitem"
+              aria-level={item.depth + 1}
+              aria-selected={item.ref.id === selectedRefId}
+              tabindex={itemId(item) === activeTreeItemId ? 0 : -1}
+              data-tree-id={itemId(item)}
+              title={`${item.file.path}:${item.ref.startLine}-${item.ref.endLine}`}
+              onclick={() => onselect(item.ref.id)}
+              onkeydown={(event) => handleKeydown(event, item)}
+            >
+              <span class="range-branch" aria-hidden="true"></span>
+              <span class="range-label">L{item.ref.startLine}-{item.ref.endLine}</span>
+              {#if detail}<small>{detail}</small>{/if}
+            </button>
+          {:else if item.node.kind === 'folder'}
+            <button
+              type="button"
+              class="tree-row folder-row"
+              style:--tree-depth={item.depth}
+              role="treeitem"
+              aria-level={item.depth + 1}
+              aria-expanded={isExpanded(item.node.id)}
+              aria-selected="false"
+              tabindex={itemId(item) === activeTreeItemId ? 0 : -1}
+              data-tree-id={item.node.id}
+              title={item.node.path}
+              onclick={() => toggleNode(item.node.id)}
+              onkeydown={(event) => handleKeydown(event, item)}
+            >
               <ChevronRight class={`disclosure${isExpanded(item.node.id) ? ' expanded' : ''}`} />
-            {:else}
-              <span class="file-indent" aria-hidden="true"></span>
-            {/if}
-            <FileCode2 class="tree-icon" strokeWidth={1.7} />
-            <span class="file-name">{item.node.name}</span>
-            <small>{rangeLabel(item.node.refs)}</small>
-          </button>
-        {/if}
-      {/each}
-    </div>
+              {#if isExpanded(item.node.id)}
+                <FolderOpen class="tree-icon" strokeWidth={1.7} />
+              {:else}
+                <Folder class="tree-icon" strokeWidth={1.7} />
+              {/if}
+              <span>{item.node.name}</span>
+            </button>
+          {:else}
+            <button
+              type="button"
+              class:context={item.node.refs.length > 1 && item.node.id === selectedFileId}
+              class:selected={item.node.refs.length === 1 && item.node.id === selectedFileId}
+              class:stale={item.node.refs.some((ref) => ref.status !== 'current')}
+              class="tree-row file-row"
+              style:--tree-depth={item.depth}
+              role="treeitem"
+              aria-level={item.depth + 1}
+              aria-expanded={item.node.refs.length > 1 ? isExpanded(item.node.id) : undefined}
+              aria-selected={item.node.refs.length === 1 && item.node.id === selectedFileId}
+              tabindex={itemId(item) === activeTreeItemId ? 0 : -1}
+              data-tree-id={item.node.id}
+              title={item.node.path}
+              onclick={() => selectFile(item.node)}
+              onkeydown={(event) => handleKeydown(event, item)}
+            >
+              {#if item.node.refs.length > 1}
+                <ChevronRight class={`disclosure${isExpanded(item.node.id) ? ' expanded' : ''}`} />
+              {:else}
+                <span class="file-indent" aria-hidden="true"></span>
+              {/if}
+              <FileCode2 class="tree-icon" strokeWidth={1.7} />
+              <span class="file-name">{item.node.name}</span>
+              <small>{rangeLabel(item.node.refs)}</small>
+            </button>
+          {/if}
+        {/each}
+      </div>
+    {/if}
   </div>
 </aside>
 
@@ -295,10 +303,29 @@
   }
 
   .tree-scroll {
+    display: flex;
     min-height: 0;
     flex: 1;
     overflow: auto;
     scrollbar-width: thin;
+  }
+
+  .source-tree-empty {
+    min-height: 100%;
+    gap: 8px;
+    color: var(--muted-foreground);
+    font-size: 10.5px;
+  }
+
+  .source-tree-empty > strong {
+    color: var(--foreground);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .source-tree-empty > span {
+    max-width: 18ch;
+    line-height: 1.45;
   }
 
   .tree {

@@ -141,7 +141,7 @@
                 </dl>
               </div>
             {:else}
-              <div class="rationale-empty">
+              <div class="rationale-empty app-state-fill">
                 The agent has not recorded a design rationale for this flow yet.
               </div>
             {/if}
@@ -181,12 +181,12 @@
             {:else if sourceRef && store.sourceStatus === 'loading'}
               <SourceViewerSkeleton />
             {:else if sourceRef && store.sourceStatus === 'error'}
-              <div class="source-state source-error">
+              <div class="source-state source-error app-state-fill">
                 <TriangleAlert aria-hidden="true" />
                 <div><strong>Source unavailable</strong><span>{store.sourceError}</span></div>
               </div>
             {:else}
-              <div class="source-state">No source selected</div>
+              <div class="source-state app-state-fill">No source selected</div>
             {/if}
           </div>
         </div>
@@ -195,7 +195,7 @@
   {:else if store.selectedProject && store.inspectorStatus === 'loading'}
     <InspectorSkeleton />
   {:else if store.selectedProject && store.inspectorStatus === 'error'}
-    <div class="empty-inspector">
+    <div class="empty-inspector app-state-fill">
       <span><TriangleAlert strokeWidth={1.7} /></span>
       <strong>{store.selectedProject.name}</strong>
       <h1>Inspector data unavailable</h1>
@@ -205,7 +205,7 @@
       >
     </div>
   {:else if store.selectedProject}
-    <div class="empty-inspector">
+    <div class="empty-inspector app-state-fill">
       <span><FolderGit2 strokeWidth={1.7} /></span>
       <strong>{store.selectedProject.name}</strong>
       <h1>No inspector data yet</h1>
@@ -215,8 +215,10 @@
       </p>
     </div>
   {:else}
-    <div class="grid flex-1 place-items-center text-[12px] text-muted-foreground">
-      Select a project
+    <div class="empty-inspector app-state-fill empty-inspector-quiet">
+      <span><FolderGit2 strokeWidth={1.7} /></span>
+      <h1>Select a project</h1>
+      <p>Choose a registered project from the Projects rail to inspect its architecture.</p>
     </div>
   {/if}
 </main>
@@ -237,14 +239,12 @@
   }
 
   .empty-inspector {
-    display: grid;
-    max-width: 460px;
     flex: 1;
-    place-items: center;
-    align-content: center;
-    justify-self: center;
-    padding-bottom: 7vh;
-    text-align: center;
+    gap: 0;
+  }
+
+  .empty-inspector > * {
+    max-width: 460px;
   }
 
   .empty-inspector > span {
@@ -287,6 +287,10 @@
     color: var(--foreground);
     font-family: var(--app-font-mono);
     font-size: 12px;
+  }
+
+  .empty-inspector-quiet > span {
+    color: var(--muted-foreground);
   }
 
   .flow-heading {
@@ -409,7 +413,8 @@
   }
 
   .rationale-empty {
-    padding: 18px 16px;
+    min-height: 100%;
+    gap: 8px;
     color: var(--muted-foreground);
     font-size: 13px;
     line-height: 1.6;
@@ -539,19 +544,15 @@
   }
 
   .source-state {
-    display: flex;
-    height: 100%;
     min-height: 220px;
-    align-items: center;
-    justify-content: center;
     gap: 8px;
-    border: 1px solid var(--panel-border);
     border: 0;
     border-radius: 0;
     color: var(--muted-foreground);
     background: var(--card);
     box-shadow: none;
     font-size: 12px;
+    padding-top: calc(var(--state-padding) + 35px);
   }
 
   .source-state :global(svg) {
@@ -566,6 +567,7 @@
   .source-error > div {
     display: grid;
     gap: 2px;
+    text-align: center;
   }
 
   .source-error strong {

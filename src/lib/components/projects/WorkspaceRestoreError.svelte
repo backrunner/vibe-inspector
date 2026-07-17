@@ -7,7 +7,7 @@
 </script>
 
 <main class="restore-error" aria-labelledby="restore-error-title">
-  <section role="alert">
+  <section class="app-state-fill" role="alert">
     <span class="state-icon"><TriangleAlert strokeWidth={1.7} /></span>
     <div>
       <h1 id="restore-error-title">Workspace unavailable</h1>
@@ -31,11 +31,9 @@
   }
 
   section {
-    display: grid;
-    width: min(520px, calc(100% - 48px));
-    justify-items: start;
+    width: min(520px, 100%);
     gap: 14px;
-    padding-bottom: 4vh;
+    text-align: center;
   }
 
   section > div {
@@ -88,5 +86,6 @@
     line-height: 1.5;
     white-space: pre-wrap;
     word-break: break-word;
+    text-align: left;
   }
 </style>

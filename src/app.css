@@ -44,9 +44,8 @@
   --status-info: var(--signal);
   --app-backdrop: linear-gradient(
     135deg,
-    color-mix(in oklab, var(--workspace) 96%, var(--signal) 4%) 0%,
-    var(--background) 46%,
-    color-mix(in oklab, var(--workspace) 97%, var(--foreground) 3%) 100%
+    color-mix(in oklab, var(--workspace) 94%, var(--signal) 6%) 0%,
+    color-mix(in oklab, var(--background) 93%, var(--foreground) 7%) 100%
   );
   --workspace-surface: linear-gradient(
     145deg,
@@ -54,18 +53,8 @@
     color-mix(in oklab, var(--workspace) 97%, var(--signal) 3%) 54%,
     var(--workspace) 100%
   );
-  --project-rail-surface: linear-gradient(
-    165deg,
-    color-mix(in oklab, var(--sidebar) 96%, white 4%) 0%,
-    var(--sidebar) 52%,
-    color-mix(in oklab, var(--sidebar) 98%, var(--workspace) 2%) 100%
-  );
-  --module-rail-surface: linear-gradient(
-    150deg,
-    color-mix(in oklab, var(--panel) 97%, white 3%) 0%,
-    var(--panel) 56%,
-    color-mix(in oklab, var(--panel) 96%, var(--workspace) 4%) 100%
-  );
+  --project-rail-surface: transparent;
+  --module-rail-surface: transparent;
   --titlebar-surface: linear-gradient(
     180deg,
     color-mix(in oklab, var(--titlebar) 96%, white 4%),
@@ -101,8 +90,11 @@
   --dur-micro: 120ms;
   --dur-short: 180ms;
   --dur-long: 300ms;
+  --dur-rail: 260ms;
   --dur-loader: 700ms;
   --dur-pulse: 1200ms;
+  --state-padding: 24px;
+  --state-min-height: 220px;
   color-scheme: light;
 }
 
@@ -143,9 +135,8 @@
   --status-info: var(--signal);
   --app-backdrop: linear-gradient(
     135deg,
-    color-mix(in oklab, var(--workspace) 96%, var(--signal) 4%) 0%,
-    var(--background) 48%,
-    color-mix(in oklab, var(--workspace) 96%, white 4%) 100%
+    color-mix(in oklab, var(--workspace) 94%, var(--signal) 6%) 0%,
+    color-mix(in oklab, var(--background) 89%, var(--foreground) 11%) 100%
   );
   --workspace-surface: linear-gradient(
     145deg,
@@ -153,18 +144,8 @@
     color-mix(in oklab, var(--workspace) 97%, var(--signal) 3%) 55%,
     var(--workspace) 100%
   );
-  --project-rail-surface: linear-gradient(
-    165deg,
-    color-mix(in oklab, var(--sidebar) 92%, white 8%) 0%,
-    var(--sidebar) 50%,
-    color-mix(in oklab, var(--sidebar) 97%, var(--signal) 3%) 100%
-  );
-  --module-rail-surface: linear-gradient(
-    150deg,
-    color-mix(in oklab, var(--panel) 94%, white 6%) 0%,
-    var(--panel) 56%,
-    color-mix(in oklab, var(--panel) 97%, var(--signal) 3%) 100%
-  );
+  --project-rail-surface: transparent;
+  --module-rail-surface: transparent;
   --titlebar-surface: linear-gradient(
     180deg,
     color-mix(in oklab, var(--titlebar) 95%, white 5%),
@@ -261,6 +242,18 @@
 }
 
 @layer utilities {
+  .app-state-fill {
+    display: grid;
+    width: 100%;
+    min-width: 0;
+    min-height: 100%;
+    place-content: center;
+    justify-items: center;
+    box-sizing: border-box;
+    padding: var(--state-padding);
+    text-align: center;
+  }
+
   .app-focus-ring {
     outline: none;
   }

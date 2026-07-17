@@ -11,11 +11,11 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 - Zinc is the dominant palette in light and dark modes.
 - Blue is a narrow signal for selection, focused evidence, and links; it is not a page theme.
 - Green, amber, and red appear only for semantic status.
-- Use four restrained Zinc layers for the titlebar, project rail, module rail, and workspace so dark mode never collapses into one near-black plane.
+- Use one restrained Zinc gradient across the full application frame. Project and module rails stay transparent over that shared plane; crisp separators, selected rows, and framed tools provide hierarchy without turning each rail into a colour block.
 - Crisp borders and spacing define structure. Rounded containers must retain a precise 1px edge so the application feels engineered rather than soft or inflated.
 - Independent tool surfaces use one shared low-contrast shadow token plus a subtle inner highlight. Shadows communicate hierarchy and must not appear on every row.
 - Use an 8-12px radius scale for framed tools and 6-8px for compact controls. Pill shapes remain reserved for status indicators.
-- A low-contrast Zinc-on-Zinc gradient may span the workspace to prevent a flat single-plane background. It must remain subordinate to content and work in both themes.
+- A low-contrast Zinc-on-Zinc gradient spans the entire window to prevent a flat single-plane background. It may carry only a trace of signal blue, must remain subordinate to content, and must work in both themes.
 - No colorful gradient blobs, glass, glow, decorative background shapes, nested cards, oversized headings, or marketing composition.
 
 ## 2. Layout
@@ -65,7 +65,7 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 --dialog-shadow;
 ```
 
-The dark default uses adjacent Zinc 900-950 values rather than pure or near-pure black: the titlebar and project rail are deepest, the module rail is slightly raised, the workspace is quieter, and framed tools are lightest. Light mode uses Zinc 50/100 structure with white tools. `--signal` is the only non-semantic blue. Workspace gradients interpolate only between adjacent Zinc surfaces and may mix no more than a trace of `--signal`.
+The dark default uses adjacent Zinc 900-950 values rather than pure or near-pure black: one shared gradient carries the window, the transparent rails are separated by crisp rules, and framed tools are the lightest surfaces. Light mode uses a Zinc 50/100 gradient with white tools. `--signal` is the only non-semantic blue. Application gradients interpolate only between adjacent Zinc surfaces and may mix no more than a trace of `--signal`.
 
 ## 4. Typography
 
@@ -98,6 +98,7 @@ Do not recreate a shadcn control inside a feature directory. Do not put VibeInsp
 - Hover changes background or foreground only; no large translate/scale movement.
 - Preserve the selected project, module, flow, and file across refreshes.
 - Respect `prefers-reduced-motion`; ordinary transitions stay within 120-180ms.
+- Rail expansion uses a 260ms grid-track transition with a short opacity/translate content reveal. Reduced motion removes both transitions.
 - Inline errors remain next to the affected scope; toast is only for transient confirmation.
 
 ## 7. Diagram and editor

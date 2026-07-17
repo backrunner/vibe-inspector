@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { ChevronDown, ChevronRight, Package, Workflow } from '@lucide/svelte';
+  import { ChevronDown, ChevronRight, Package, SearchX, Workflow } from '@lucide/svelte';
+  import { Button } from '$lib/components/ui/button';
   import { inspectorStore } from '$stores/inspector.svelte';
   import { buildModuleTree, moduleAncestorIds, type ModuleTreeRow } from '$domain/module-tree';
 
@@ -97,9 +98,28 @@
   }
 </script>
 
-<div class="tree" role="tree" aria-label="Repository modules" bind:this={treeRoot}>
+<div
+  class:empty={rows.length === 0}
+  class="tree"
+  role="tree"
+  aria-label="Repository modules"
+  bind:this={treeRoot}
+>
   {#if rows.length === 0}
-    <div class="px-3 py-8 text-center text-[11.5px] text-muted-foreground">No matching modules</div>
+    <div class="module-empty app-state-fill">
+      <SearchX class="size-4" strokeWidth={1.7} aria-hidden="true" />
+      <strong>{store.searchQuery.trim() ? 'No matching modules' : 'No modules available'}</strong>
+      <span
+        >{store.searchQuery.trim()
+          ? 'Try a broader filter.'
+          : 'Architecture appears after a project is registered.'}</span
+      >
+      {#if store.searchQuery.trim()}
+        <Button variant="ghost" size="xs" onclick={() => (store.searchQuery = '')}
+          >Clear filter</Button
+        >
+      {/if}
+    </div>
   {:else}
     {#each rows as row (rowId(row))}
       {#if row.kind === 'module'}
@@ -176,7 +196,33 @@
     display: grid;
     align-content: start;
     gap: 2px;
+    height: 100%;
+    min-height: 0;
     padding: 0 8px 16px;
+  }
+
+  .tree.empty {
+    align-content: stretch;
+    grid-template-rows: minmax(0, 1fr);
+    padding: 0;
+  }
+
+  .module-empty {
+    min-height: 0;
+    gap: 8px;
+    padding-bottom: calc(var(--state-padding) + var(--module-empty-chrome-offset, 0px));
+    color: var(--muted-foreground);
+    font-size: 11.5px;
+  }
+
+  .module-empty > strong {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .module-empty > span {
+    max-width: 22ch;
+    line-height: 1.45;
   }
 
   .tree-row {
