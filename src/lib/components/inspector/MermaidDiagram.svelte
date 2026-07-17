@@ -21,9 +21,10 @@
   let renderSequence = 0;
   let initializedTheme = '';
 
-  function token(name: string, fallback: string): string {
-    if (typeof document === 'undefined') return fallback;
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  function token(name: string): string {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    if (!value) throw new Error(`Missing diagram theme token: ${name}`);
+    return value;
   }
 
   async function renderDiagram(currentDefinition: string, currentTheme: 'dark' | 'light') {
@@ -47,27 +48,18 @@
         theme: 'base',
         themeVariables: {
           darkMode: currentTheme === 'dark',
-          background: token('--diagram-surface', currentTheme === 'dark' ? '#18181b' : '#ffffff'),
-          primaryColor: token('--diagram-node', currentTheme === 'dark' ? '#27272a' : '#fafafa'),
-          primaryTextColor: token(
-            '--diagram-text',
-            currentTheme === 'dark' ? '#fafafa' : '#18181b',
-          ),
-          primaryBorderColor: token(
-            '--diagram-border',
-            currentTheme === 'dark' ? '#52525b' : '#d4d4d8',
-          ),
-          secondaryColor: token('--diagram-node', currentTheme === 'dark' ? '#27272a' : '#fafafa'),
-          tertiaryColor: token('--diagram-node', currentTheme === 'dark' ? '#27272a' : '#fafafa'),
-          lineColor: token('--diagram-line', currentTheme === 'dark' ? '#a1a1aa' : '#71717a'),
-          edgeLabelBackground: token(
-            '--diagram-surface',
-            currentTheme === 'dark' ? '#18181b' : '#ffffff',
-          ),
-          fontFamily: '-apple-system, BlinkMacSystemFont, SF Pro Text, Helvetica Neue, sans-serif',
-          fontSize: '11px',
+          background: token('--diagram-surface'),
+          primaryColor: token('--diagram-node'),
+          primaryTextColor: token('--diagram-text'),
+          primaryBorderColor: token('--diagram-border'),
+          secondaryColor: token('--diagram-node'),
+          tertiaryColor: token('--diagram-node'),
+          lineColor: token('--diagram-line'),
+          edgeLabelBackground: token('--diagram-surface'),
+          fontFamily: token('--app-font-sans'),
+          fontSize: token('--diagram-font-size'),
         },
-        themeCSS: '.nodeLabel { font-weight: 520; } .edgeLabel { font-size: 10px; }',
+        themeCSS: `.nodeLabel { font-weight: 520; } .edgeLabel { font-size: ${token('--diagram-edge-font-size')}; }`,
         flowchart: {
           curve: 'basis',
           htmlLabels: false,
@@ -151,8 +143,8 @@
 
   .diagram-svg :global(.node rect),
   .diagram-svg :global(.node .label-container) {
-    rx: 6px;
-    ry: 6px;
+    rx: var(--radius-compact);
+    ry: var(--radius-compact);
   }
 
   .diagram-svg :global(.flowchart-link) {

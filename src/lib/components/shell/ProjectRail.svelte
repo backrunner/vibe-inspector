@@ -24,7 +24,7 @@
       {#each store.projects as project}
         <button
           class:active={project.id === store.selectedProjectId}
-          class="project-avatar relative grid size-8 place-items-center rounded-md border border-transparent font-mono text-[9px] font-semibold transition-colors"
+          class="project-avatar app-focus-ring relative grid size-8 place-items-center rounded-md border border-transparent font-mono text-[9px] font-semibold transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)]"
           aria-label={`Open ${project.name}`}
           title={project.name}
           onclick={() => store.selectProject(project.id)}
@@ -62,7 +62,7 @@
         {#each store.projects as project}
           <button
             class:active={project.id === store.selectedProjectId}
-            class="project-row group flex min-w-0 items-center gap-2.5 rounded-md border border-transparent py-2.5 pl-2 pr-[11px] text-left transition-colors hover:bg-sidebar-accent"
+            class="project-row app-focus-ring group flex min-w-0 items-center gap-2.5 rounded-md border border-transparent py-2.5 pl-2 pr-[11px] text-left transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)] hover:bg-sidebar-accent"
             aria-current={project.id === store.selectedProjectId ? 'page' : undefined}
             onclick={() => store.selectProject(project.id)}
           >
@@ -95,7 +95,6 @@
   .project-rail {
     flex: 0 0 216px;
     background: var(--project-rail-surface);
-    transition: flex-basis 160ms ease;
   }
   .project-rail.collapsed {
     flex-basis: 56px;
@@ -108,6 +107,10 @@
   .project-avatar.active {
     border-color: var(--ring);
     background: var(--sidebar-accent);
+  }
+  .project-avatar,
+  .project-row {
+    --app-focus-ring-offset: -3px;
   }
   .project-avatar,
   .project-mark {

@@ -1,3 +1,4 @@
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 · genre: modern-minimal · tone: dense macOS workbench · anchor: Zinc with restrained signal blue · macrostructure: Workbench · design-system: .agents/04-design-system.md · contrast: pass (40–41) · slop: pass (42–49) · viewport: pass (1100–1920 app range) */
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn-svelte/tailwind.css';
@@ -25,7 +26,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
   --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
+  --ring: var(--signal);
   --radius: 0.75rem;
   --sidebar: oklch(0.96 0.002 286.34);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
@@ -34,8 +35,9 @@
   --sidebar-accent: oklch(0.925 0.004 286.32);
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --sidebar-ring: var(--ring);
   --signal: oklch(0.623 0.214 259.815);
+  --signal-foreground: oklch(0.985 0 0);
   --status-success: oklch(0.535 0.145 152.1);
   --status-warning: oklch(0.615 0.155 74.4);
   --status-error: oklch(0.56 0.205 27.3);
@@ -75,6 +77,8 @@
   --diagram-text: #18181b;
   --diagram-border: #d4d4d8;
   --diagram-line: #71717a;
+  --diagram-font-size: 11px;
+  --diagram-edge-font-size: 10px;
   --editor-background: #fbfbfc;
   --editor-foreground: #27272a;
   --editor-line-number: #8b8b96;
@@ -83,12 +87,22 @@
   --editor-selection: #b8d7ff99;
   --editor-selection-inactive: #d7e7fa99;
   --editor-reference: #65a1ff;
+  --editor-font-size: 13px;
+  --editor-line-height: 20px;
   --panel-shadow:
     inset 0 1px 0 rgb(255 255 255 / 70%), 0 1px 2px rgb(24 24 27 / 7%),
     0 10px 30px rgb(24 24 27 / 5%);
   --dialog-shadow: 0 24px 80px rgb(24 24 27 / 18%), 0 4px 14px rgb(24 24 27 / 8%);
   --app-font-sans: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
   --app-font-mono: 'SFMono-Regular', 'SF Mono', 'JetBrains Mono', ui-monospace, monospace;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-micro: 120ms;
+  --dur-short: 180ms;
+  --dur-long: 300ms;
+  --dur-loader: 700ms;
+  --dur-pulse: 1200ms;
   color-scheme: light;
 }
 
@@ -113,7 +127,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 14%);
   --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.62 0.02 258);
+  --ring: var(--signal);
   --sidebar: oklch(0.195 0.005 285.85);
   --sidebar-foreground: oklch(0.94 0.002 286.3);
   --sidebar-primary: oklch(0.93 0.002 286.3);
@@ -121,7 +135,7 @@
   --sidebar-accent: oklch(0.25 0.006 286);
   --sidebar-accent-foreground: oklch(0.94 0.002 286.3);
   --sidebar-border: oklch(1 0 0 / 11%);
-  --sidebar-ring: oklch(0.62 0.02 258);
+  --sidebar-ring: var(--ring);
   --signal: oklch(0.707 0.165 254.624);
   --status-success: oklch(0.72 0.15 155.5);
   --status-warning: oklch(0.78 0.145 78.4);
@@ -210,6 +224,8 @@
   --color-status-error: var(--status-error);
   --color-status-info: var(--status-info);
   --radius-sm: calc(var(--radius) * 0.65);
+  --radius-xs: 2px;
+  --radius-compact: 6px;
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.25);
@@ -244,8 +260,19 @@
   }
 }
 
+@layer utilities {
+  .app-focus-ring {
+    outline: none;
+  }
+
+  .app-focus-ring:focus-visible {
+    outline: 3px solid var(--ring);
+    outline-offset: var(--app-focus-ring-offset, 2px);
+  }
+}
+
 ::selection {
-  color: white;
+  color: var(--signal-foreground);
   background: var(--signal);
 }
 

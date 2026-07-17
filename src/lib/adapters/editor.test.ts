@@ -14,6 +14,9 @@ describe('readonly editor adapter', () => {
       path: 'src/inspect.rs',
       theme: 'vibe-inspector-dark',
       codeStartLine: 41,
+      fontFamily: 'SF Mono, monospace',
+      fontSize: 13,
+      lineHeight: 20,
     });
 
     expect(options).toMatchObject({
@@ -25,6 +28,9 @@ describe('readonly editor adapter', () => {
       minimap: { enabled: false },
       language: 'rust',
       wordWrap: 'off',
+      fontFamily: 'SF Mono, monospace',
+      fontSize: 13,
+      lineHeight: 20,
     });
     expect(typeof options.lineNumbers).toBe('function');
     expect((options.lineNumbers as (line: number) => string)(2)).toBe('42');

@@ -14,7 +14,7 @@
   const definition = $derived(flowGraphToMermaid(flow.graph, 'LR'));
   const diagramWidth = $derived.by(() => {
     if (!viewportWidth) return undefined;
-    const readableWidth = Math.max(viewportWidth, flow.graph.nodes.length * 130);
+    const readableWidth = Math.max(viewportWidth, flow.graph.nodes.length * 120);
     return Math.round(readableWidth * zoom);
   });
 
@@ -57,10 +57,7 @@
   </header>
 
   <div bind:this={viewport} class="viewport">
-    <div
-      class="diagram-scale"
-      style:width={diagramWidth ? `${diagramWidth}px` : '100%'}
-    >
+    <div class="diagram-scale" style:width={diagramWidth ? `${diagramWidth}px` : '100%'}>
       <MermaidDiagram {definition} {theme} label={`${flow.name} business flow`} />
     </div>
   </div>
@@ -127,7 +124,5 @@
     height: 100%;
     min-height: 100%;
     margin: 0 auto;
-    transition: width 150ms ease;
   }
-
 </style>

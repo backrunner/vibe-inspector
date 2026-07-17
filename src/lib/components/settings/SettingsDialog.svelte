@@ -214,10 +214,9 @@
     background: transparent;
     box-shadow: none;
     transition:
-      color 140ms ease,
-      border-color 140ms ease,
-      background-color 140ms ease,
-      box-shadow 140ms ease;
+      color var(--dur-micro) var(--ease-out),
+      border-color var(--dur-micro) var(--ease-out),
+      background-color var(--dur-micro) var(--ease-out);
   }
 
   :global(.theme-option:hover:not(.selected)) {

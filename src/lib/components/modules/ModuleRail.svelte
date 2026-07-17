@@ -65,7 +65,6 @@
   .module-rail {
     flex: 0 0 280px;
     background: var(--module-rail-surface);
-    transition: flex-basis 160ms ease;
   }
   .module-rail.collapsed {
     flex-basis: 48px;

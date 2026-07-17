@@ -15,7 +15,9 @@
   <Dialog.Content class="shortcuts-dialog gap-0 overflow-hidden p-0 sm:max-w-[460px]">
     <Dialog.Header class="border-b px-5 py-4 text-left">
       <Dialog.Title class="text-[15px]">Keyboard shortcuts</Dialog.Title>
-      <Dialog.Description class="text-[12px]">Navigate the inspector without leaving context.</Dialog.Description>
+      <Dialog.Description class="text-[12px]"
+        >Navigate the inspector without leaving context.</Dialog.Description
+      >
     </Dialog.Header>
     <div class="shortcut-list">
       {#each shortcuts as shortcut (shortcut.label)}
@@ -69,7 +71,7 @@
     place-items: center;
     padding: 0 6px;
     border: 1px solid var(--panel-border);
-    border-radius: 6px;
+    border-radius: var(--radius-compact);
     color: var(--muted-foreground);
     background: color-mix(in oklab, var(--muted) 66%, var(--card));
     box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 5%, transparent);

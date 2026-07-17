@@ -36,6 +36,9 @@ export type ReadonlyEditorOptionsInput = {
   path: string;
   theme: string;
   codeStartLine: number;
+  fontFamily: string;
+  fontSize: number;
+  lineHeight: number;
 };
 
 export function readonlyEditorOptions({
@@ -43,6 +46,9 @@ export function readonlyEditorOptions({
   path,
   theme,
   codeStartLine,
+  fontFamily,
+  fontSize,
+  lineHeight,
 }: ReadonlyEditorOptionsInput): editor.IStandaloneEditorConstructionOptions {
   return {
     value,
@@ -63,9 +69,9 @@ export function readonlyEditorOptions({
     scrollBeyondLastLine: false,
     automaticLayout: true,
     padding: { top: 12, bottom: 18 },
-    fontSize: 13,
-    lineHeight: 20,
-    fontFamily: 'SFMono-Regular, SF Mono, JetBrains Mono, ui-monospace, monospace',
+    fontSize,
+    lineHeight,
+    fontFamily,
     fontLigatures: false,
     fontWeight: '400',
     letterSpacing: 0,

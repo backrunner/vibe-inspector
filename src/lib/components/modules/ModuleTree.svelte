@@ -264,9 +264,9 @@
     text-align: left;
     font-size: 12px;
     transition:
-      color 140ms ease,
-      background-color 140ms ease,
-      border-color 140ms ease;
+      color var(--dur-micro) var(--ease-out),
+      background-color var(--dur-micro) var(--ease-out),
+      border-color var(--dur-micro) var(--ease-out);
   }
 
   .flow-row:hover {
@@ -283,7 +283,7 @@
   .flow-row:focus-visible,
   .module-select:focus-visible,
   .disclosure:focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--ring) 70%, transparent);
+    outline: 2px solid var(--ring);
     outline-offset: -2px;
   }
 

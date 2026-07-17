@@ -180,7 +180,7 @@
 
 {#if step === 'choose'}
   <div class="choice-list">
-    <button onclick={scanHistory}>
+    <button class="app-focus-ring" onclick={scanHistory}>
       <span class="choice-icon"><History strokeWidth={1.7} /></span>
       <span class="choice-copy">
         <strong>Codex history</strong>
@@ -188,7 +188,7 @@
       </span>
       <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
     </button>
-    <button onclick={() => selectAndScan('collection')}>
+    <button class="app-focus-ring" onclick={() => selectAndScan('collection')}>
       <span class="choice-icon"><Folders strokeWidth={1.7} /></span>
       <span class="choice-copy">
         <strong>Projects folder</strong>
@@ -196,7 +196,7 @@
       </span>
       <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
     </button>
-    <button onclick={() => selectAndScan('single-project')}>
+    <button class="app-focus-ring" onclick={() => selectAndScan('single-project')}>
       <span class="choice-icon"><FolderGit2 strokeWidth={1.7} /></span>
       <span class="choice-copy">
         <strong>Single project</strong>
@@ -347,23 +347,11 @@
     background: color-mix(in oklab, var(--card) 58%, transparent);
     box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent);
     text-align: left;
-    transition:
-      border-color 140ms ease,
-      background-color 140ms ease,
-      box-shadow 140ms ease;
+    transition: background-color var(--dur-micro) var(--ease-out);
   }
 
   .choice-list > button:hover {
-    border-color: color-mix(in oklab, var(--signal) 20%, var(--panel-border));
     background: color-mix(in oklab, var(--card) 86%, transparent);
-    box-shadow:
-      inset 0 1px 0 color-mix(in oklab, var(--foreground) 6%, transparent),
-      0 8px 24px color-mix(in oklab, var(--foreground) 5%, transparent);
-  }
-
-  .choice-list > button:focus-visible {
-    outline: 2px solid var(--ring);
-    outline-offset: 2px;
   }
 
   .choice-list > button:active {
@@ -378,14 +366,6 @@
     border-radius: 999px;
     box-sizing: content-box;
     background: color-mix(in oklab, var(--muted) 56%, transparent);
-    transition:
-      color 140ms ease,
-      transform 140ms ease;
-  }
-
-  .choice-list > button:hover > :global(svg) {
-    color: var(--foreground);
-    transform: translateX(2px);
   }
 
   .choice-icon,
@@ -462,7 +442,7 @@
   }
 
   .state-icon.scanning :global(svg) {
-    animation: scan-pulse 1.2s ease-in-out infinite alternate;
+    animation: scan-pulse var(--dur-pulse) var(--ease-in-out) infinite alternate;
   }
 
   @media (prefers-reduced-motion: reduce) {

@@ -325,9 +325,9 @@
     font-size: 11.5px;
     letter-spacing: 0;
     transition:
-      color 140ms ease,
-      background-color 140ms ease,
-      border-color 140ms ease;
+      color var(--dur-micro) var(--ease-out),
+      background-color var(--dur-micro) var(--ease-out),
+      border-color var(--dur-micro) var(--ease-out);
   }
 
   .tree-row:hover {
@@ -336,7 +336,7 @@
   }
 
   .tree-row:focus-visible {
-    outline: 2px solid color-mix(in oklab, var(--ring) 72%, transparent);
+    outline: 2px solid var(--ring);
     outline-offset: -2px;
   }
 
@@ -365,7 +365,7 @@
   }
 
   :global(.source-tree .disclosure) {
-    transition: transform 140ms ease;
+    transition: transform var(--dur-micro) var(--ease-out);
   }
 
   :global(.source-tree .disclosure.expanded) {
@@ -400,7 +400,7 @@
     flex: 0 0 auto;
     color: var(--muted-foreground);
     font-family: var(--app-font-mono);
-    font-size: 9.5px;
+    font-size: 10px;
   }
 
   .range-row {
@@ -431,7 +431,7 @@
     overflow: hidden;
     color: var(--muted-foreground);
     font-family: var(--app-font-mono);
-    font-size: 9.5px;
+    font-size: 10px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }

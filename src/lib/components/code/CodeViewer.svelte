@@ -50,6 +50,12 @@
     return value;
   }
 
+  function editorNumberToken(name: string): number {
+    const value = Number.parseFloat(editorToken(name));
+    if (!Number.isFinite(value)) throw new Error(`Invalid numeric editor theme token: ${name}`);
+    return value;
+  }
+
   function defineEditorTheme(editorApi: typeof monaco, currentTheme: 'dark' | 'light') {
     if (!editorApi) return;
     editorApi.editor.defineTheme(editorTheme(currentTheme), {
@@ -136,6 +142,9 @@
           path: file.path,
           theme: editorTheme(theme),
           codeStartLine,
+          fontFamily: editorToken('--app-font-mono'),
+          fontSize: editorNumberToken('--editor-font-size'),
+          lineHeight: editorNumberToken('--editor-line-height'),
         }),
       );
       loading = false;
@@ -189,7 +198,7 @@
     <div class="code-meta">
       <span class="readonly-lock"><LockKeyhole aria-hidden="true" /> read only</span>
       <span>{lineCount} lines</span>
-      <button class="copy-path" onclick={copyPath} aria-label="Copy source path">
+      <button class="copy-path app-focus-ring" onclick={copyPath} aria-label="Copy source path">
         {#if copied}<Check aria-hidden="true" />{:else}<Copy aria-hidden="true" />{/if}
         {copied ? 'Copied' : 'Copy path'}
       </button>
@@ -278,7 +287,7 @@
   .range-marker {
     width: 6px;
     height: 6px;
-    border-radius: 2px;
+    border-radius: var(--radius-xs);
     background: var(--signal);
   }
 
@@ -314,7 +323,7 @@
     height: 25px;
     flex: 0 0 25px;
     place-items: center;
-    border-radius: 6px;
+    border-radius: var(--radius-compact);
     color: var(--muted-foreground);
     background: var(--muted);
   }
@@ -368,6 +377,8 @@
   }
 
   .copy-path {
+    --app-focus-ring-offset: -3px;
+
     gap: 5px;
     padding: 4px 0 4px 7px;
     border: 0;
@@ -419,7 +430,7 @@
     border: 2px solid color-mix(in oklab, var(--signal) 20%, transparent);
     border-top-color: var(--signal);
     border-radius: 999px;
-    animation: spin 700ms linear infinite;
+    animation: spin var(--dur-loader) linear infinite;
   }
 
   :global(.vi-line-highlight) {

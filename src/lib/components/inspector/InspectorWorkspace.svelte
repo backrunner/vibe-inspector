@@ -20,6 +20,7 @@
   const store = inspectorStore;
   const flow = $derived(store.selectedFlow);
   const sourceRef = $derived(store.selectedSourceRef);
+  let overviewPanel = $state<'flow' | 'rationale'>('flow');
 
   function formatSource(source: string): string {
     return source
@@ -62,8 +63,27 @@
         </div>
       </section>
 
-      <section class="overview-section" aria-label="Flow overview">
-        <FlowGraph {flow} theme={store.theme} />
+      <section class="overview-section" data-panel={overviewPanel} aria-label="Flow overview">
+        <div class="overview-toggle" role="group" aria-label="Flow overview panel">
+          <Button
+            size="xs"
+            variant={overviewPanel === 'flow' ? 'secondary' : 'ghost'}
+            class="overview-option"
+            aria-pressed={overviewPanel === 'flow'}
+            onclick={() => (overviewPanel = 'flow')}>Flow</Button
+          >
+          <Button
+            size="xs"
+            variant={overviewPanel === 'rationale' ? 'secondary' : 'ghost'}
+            class="overview-option"
+            aria-pressed={overviewPanel === 'rationale'}
+            onclick={() => (overviewPanel = 'rationale')}>Rationale</Button
+          >
+        </div>
+
+        <div class="flow-panel">
+          <FlowGraph {flow} theme={store.theme} />
+        </div>
 
         <aside class="rationale" aria-label="Design rationale">
           <header>
@@ -313,8 +333,21 @@
     display: grid;
     min-width: 0;
     min-height: 0;
-    grid-template-columns: minmax(300px, 1fr) 280px;
+    grid-template-columns: minmax(0, 1fr) 400px;
     gap: 12px;
+  }
+
+  .overview-toggle {
+    display: none;
+  }
+
+  .flow-panel {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .flow-panel :global(.graph) {
+    height: 100%;
   }
 
   .rationale {
@@ -368,7 +401,11 @@
   }
 
   .rationale-content {
+    width: 100%;
+    max-width: 58ch;
+    margin: 0 auto;
     padding: 16px 16px 20px;
+    box-sizing: border-box;
   }
 
   .rationale-empty {
@@ -544,11 +581,40 @@
 
   @media (max-width: 1200px) {
     .workspace-content {
+      grid-template-rows: auto minmax(220px, 0.95fr) minmax(250px, 1.1fr);
       padding: 14px;
     }
 
     .overview-section {
-      grid-template-columns: minmax(0, 1fr) 270px;
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: 28px minmax(0, 1fr);
+      gap: 8px;
+    }
+
+    .overview-toggle {
+      display: inline-flex;
+      width: max-content;
+      align-items: center;
+      gap: 2px;
+      padding: 2px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: color-mix(in oklab, var(--muted) 58%, transparent);
+    }
+
+    :global(.overview-option) {
+      min-width: 72px;
+    }
+
+    .flow-panel,
+    .rationale {
+      grid-row: 2;
+      grid-column: 1;
+    }
+
+    .overview-section[data-panel='flow'] .rationale,
+    .overview-section[data-panel='rationale'] .flow-panel {
+      display: none;
     }
 
     .source-grid {
