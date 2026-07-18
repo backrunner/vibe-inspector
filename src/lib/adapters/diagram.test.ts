@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { flowGraphToMermaid } from './diagram';
+import {
+  clampDiagramZoom,
+  diagramZoomFromWheel,
+  flowGraphToMermaid,
+  maximumDiagramZoom,
+  minimumDiagramZoom,
+} from './diagram';
 import type { FlowNode } from '$domain/entities';
 
 function node(id: string, label: string, kind: FlowNode['kind'] = 'action'): FlowNode {
@@ -39,5 +45,13 @@ describe('flowGraphToMermaid', () => {
     );
 
     expect(definition).toContain('flowchart TB');
+  });
+
+  it('maps wheel and pinch deltas to bounded diagram zoom levels', () => {
+    expect(diagramZoomFromWheel(1, -100, false)).toBeGreaterThan(1);
+    expect(diagramZoomFromWheel(1, 100, false)).toBeLessThan(1);
+    expect(diagramZoomFromWheel(1, -1, true)).toBeGreaterThan(1);
+    expect(clampDiagramZoom(0.1)).toBe(minimumDiagramZoom);
+    expect(clampDiagramZoom(4)).toBe(maximumDiagramZoom);
   });
 });

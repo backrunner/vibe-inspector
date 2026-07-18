@@ -3,6 +3,7 @@
   import { Input } from '$lib/components/ui/input';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
   import IconButton from '$components/IconButton.svelte';
+  import LiquidGlassSurface from '$components/LiquidGlassSurface.svelte';
   import ModuleTree from './ModuleTree.svelte';
   import { inspectorStore } from '$stores/inspector.svelte';
 
@@ -32,12 +33,9 @@
     </div>
   {:else}
     <div class="rail-mode rail-mode-expanded">
-      <header class="rail-header flex h-11 shrink-0 items-center justify-between px-4 pr-2">
-        <div class="grid min-w-0 gap-0.5">
-          <strong class="text-[14px] font-semibold">Architecture</strong><span
-            class="truncate text-[11.5px] text-muted-foreground"
-            >{store.selectedProject?.name ?? 'No project'}</span
-          >
+      <header class="rail-header architecture-header">
+        <div class="architecture-title">
+          <strong>Architecture</strong><span>{store.selectedProject?.name ?? 'No project'}</span>
         </div>
         <IconButton
           label="Collapse module rail"
@@ -46,17 +44,16 @@
         />
       </header>
 
-      <div class="module-search relative mx-3 mt-3 mb-2">
-        <Search
-          class="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-          strokeWidth={1.8}
-        />
-        <Input
-          bind:value={store.searchQuery}
-          placeholder="Filter architecture"
-          aria-label="Filter architecture"
-          class="h-8 bg-input/35 pl-8 text-[13px]"
-        />
+      <div class="module-search mx-3 mt-3 mb-2">
+        <LiquidGlassSurface variant="field" class="module-search-glass">
+          <Search class="search-icon" strokeWidth={1.8} aria-hidden="true" />
+          <Input
+            bind:value={store.searchQuery}
+            placeholder="Filter architecture"
+            aria-label="Filter architecture"
+            class="h-8 border-0 bg-transparent pr-3 pl-8 text-[13px] [box-shadow:none] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+          />
+        </LiquidGlassSurface>
       </div>
 
       <div
@@ -99,8 +96,67 @@
     content: '';
   }
 
+  .architecture-header {
+    display: flex;
+    min-height: 56px;
+    flex: 0 0 56px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0 8px 0 16px;
+  }
+
+  .architecture-title {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+  }
+
+  .architecture-title strong,
+  .architecture-title span {
+    overflow: hidden;
+    line-height: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .architecture-title strong {
+    font-size: 14px;
+    font-weight: 620;
+  }
+
+  .architecture-title span {
+    color: var(--muted-foreground);
+    font-size: 11.5px;
+  }
+
+  .module-search {
+    position: relative;
+  }
+
+  :global(.module-search-glass) {
+    --glass-pointer-x: 18%;
+    --glass-pointer-y: 28%;
+  }
+
+  :global(.module-search-glass .search-icon) {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    z-index: 2;
+    width: 14px;
+    height: 14px;
+    color: var(--muted-foreground);
+    pointer-events: none;
+    transform: translateY(-50%);
+  }
+
+  :global(.module-search-glass:has(input:focus-visible) .search-icon) {
+    color: var(--foreground);
+  }
+
   .rail-mode {
-    --module-empty-chrome-offset: 124px;
+    --module-empty-chrome-offset: 136px;
 
     display: flex;
     width: 280px;

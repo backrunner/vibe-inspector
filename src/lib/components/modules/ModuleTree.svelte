@@ -179,12 +179,13 @@
           aria-current={row.flow.id === store.selectedFlowId ? 'page' : undefined}
           tabindex={rowId(row) === selectedRowId ? 0 : -1}
           data-tree-id={rowId(row)}
+          title={row.flow.name}
           onclick={() => store.selectFlow(row.module.id, row.flow.id)}
           onkeydown={(event) => handleKeydown(event, row)}
         >
           <span class="flow-branch" aria-hidden="true"></span>
           <Workflow class="size-3.5 shrink-0" strokeWidth={1.7} />
-          <span class="min-w-0 flex-1 truncate">{row.flow.name}</span>
+          <span class="flow-label">{row.flow.name}</span>
         </button>
       {/if}
     {/each}
@@ -298,12 +299,17 @@
   }
 
   .flow-row {
+    --flow-indent: calc(16px + var(--depth) * 18px);
+
     display: flex;
-    width: 100%;
+    width: max-content;
+    max-width: calc(100% - var(--flow-indent));
     min-height: 30px;
+    justify-self: start;
     align-items: center;
     gap: 7px;
-    padding: 0 8px 0 calc(16px + var(--depth) * 18px);
+    margin-left: var(--flow-indent);
+    padding: 0 8px;
     border: 1px solid transparent;
     border-radius: var(--radius-md);
     background: transparent;
@@ -327,6 +333,14 @@
     box-shadow: var(--selected-shadow);
   }
 
+  .flow-label {
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .flow-row:focus-visible,
   .module-select:focus-visible,
   .disclosure:focus-visible {
@@ -338,7 +352,7 @@
     position: absolute;
     top: -3px;
     bottom: 50%;
-    left: calc(-5px + var(--depth) * 18px);
+    left: -21px;
     width: 10px;
     border-bottom: 1px solid var(--border);
     border-left: 1px solid var(--border);

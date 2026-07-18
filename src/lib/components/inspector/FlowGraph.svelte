@@ -1,8 +1,12 @@
 <script lang="ts">
   import { Maximize2, ZoomIn, ZoomOut } from '@lucide/svelte';
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import IconButton from '$components/IconButton.svelte';
-  import { flowGraphToMermaid } from '$lib/adapters/diagram';
+  import {
+    clampDiagramZoom,
+    diagramZoomFromWheel,
+    flowGraphToMermaid,
+  } from '$lib/adapters/diagram';
   import type { Flow } from '$domain/entities';
   import MermaidDiagram from './MermaidDiagram.svelte';
 
@@ -20,12 +24,49 @@
 
   onMount(() => {
     if (!viewport) return;
+    const element = viewport;
     const observer = new ResizeObserver(([entry]) => {
       viewportWidth = entry.contentRect.width;
     });
-    observer.observe(viewport);
-    return () => observer.disconnect();
+    observer.observe(element);
+    element.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      observer.disconnect();
+      element.removeEventListener('wheel', handleWheel);
+    };
   });
+
+  async function setZoom(nextZoom: number, clientX?: number) {
+    if (!viewport) return;
+    const previousZoom = zoom;
+    const clampedZoom = clampDiagramZoom(nextZoom);
+    if (clampedZoom === previousZoom) return;
+
+    const bounds = viewport.getBoundingClientRect();
+    const pointerOffset = (clientX ?? bounds.left + bounds.width / 2) - bounds.left;
+    const contentOffset = viewport.scrollLeft + pointerOffset;
+    zoom = clampedZoom;
+    await tick();
+    viewport.scrollLeft = contentOffset * (clampedZoom / previousZoom) - pointerOffset;
+  }
+
+  function normalizedWheelDelta(event: WheelEvent): number {
+    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
+    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      return event.deltaY * (viewport?.clientHeight ?? 1);
+    }
+    return event.deltaY;
+  }
+
+  function handleWheel(event: WheelEvent) {
+    if (!event.ctrlKey && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)))
+      return;
+    event.preventDefault();
+    void setZoom(
+      diagramZoomFromWheel(zoom, normalizedWheelDelta(event), event.ctrlKey),
+      event.clientX,
+    );
+  }
 
   $effect(() => {
     const currentFlowId = flow.id;
@@ -41,18 +82,10 @@
       <span>{flow.graph.nodes.length} steps</span>
     </div>
     <div class="controls">
-      <IconButton
-        label="Zoom out"
-        icon={ZoomOut}
-        onclick={() => (zoom = Math.max(0.8, zoom - 0.1))}
-      />
+      <IconButton label="Zoom out" icon={ZoomOut} onclick={() => void setZoom(zoom - 0.1)} />
       <span>{Math.round(zoom * 100)}%</span>
-      <IconButton
-        label="Zoom in"
-        icon={ZoomIn}
-        onclick={() => (zoom = Math.min(1.3, zoom + 0.1))}
-      />
-      <IconButton label="Reset diagram view" icon={Maximize2} onclick={() => (zoom = 1)} />
+      <IconButton label="Zoom in" icon={ZoomIn} onclick={() => void setZoom(zoom + 0.1)} />
+      <IconButton label="Reset diagram view" icon={Maximize2} onclick={() => void setZoom(1)} />
     </div>
   </header>
 
@@ -129,6 +162,7 @@
     min-height: 0;
     overflow: auto;
     background: var(--diagram-surface);
+    overscroll-behavior: contain;
   }
 
   .diagram-scale {

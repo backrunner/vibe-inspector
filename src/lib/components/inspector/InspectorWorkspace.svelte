@@ -9,7 +9,6 @@
   } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
-  import StatusBadge from '$components/StatusBadge.svelte';
   import CodeViewer from '$components/code/CodeViewer.svelte';
   import SourceFileTree from '$components/code/SourceFileTree.svelte';
   import SourceViewerSkeleton from '$components/code/SourceViewerSkeleton.svelte';
@@ -56,7 +55,6 @@
           <p>{flow.summary}</p>
         </div>
         <div class="flex shrink-0 items-center gap-2">
-          <StatusBadge status={flow.status} />
           <Button size="sm" onclick={() => store.refreshSelectedProject()}
             ><RefreshCw data-icon="inline-start" />Refresh</Button
           >

@@ -5,6 +5,22 @@ type FlowGraph = {
   edges: FlowEdge[];
 };
 
+export const minimumDiagramZoom = 0.7;
+export const maximumDiagramZoom = 1.6;
+
+export function clampDiagramZoom(value: number): number {
+  return Math.min(maximumDiagramZoom, Math.max(minimumDiagramZoom, value));
+}
+
+export function diagramZoomFromWheel(
+  currentZoom: number,
+  deltaY: number,
+  isPinchGesture: boolean,
+): number {
+  const sensitivity = isPinchGesture ? 0.008 : 0.0015;
+  return clampDiagramZoom(currentZoom * Math.exp(-deltaY * sensitivity));
+}
+
 function escapeLabel(value: string): string {
   return value
     .replaceAll('&', '&amp;')
