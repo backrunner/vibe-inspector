@@ -25,17 +25,11 @@
         {#each store.projects as project}
           <button
             class:active={project.id === store.selectedProjectId}
-            class="project-avatar app-focus-ring relative grid size-8 place-items-center rounded-md border border-transparent font-mono text-[9px] font-semibold transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)]"
+            class="project-avatar app-focus-ring grid size-8 place-items-center rounded-md border border-transparent font-mono text-[9px] font-semibold transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)]"
             aria-label={`Open ${project.name}`}
             title={project.name}
             onclick={() => store.selectProject(project.id)}
-            >{project.name.slice(0, 2).toUpperCase()}<span
-              class:stale={project.status === 'stale'}
-              class:error={project.status === 'error'}
-              class:syncing={project.status === 'syncing'}
-              class="collapsed-status"
-              aria-hidden="true"
-            ></span></button
+            >{project.name.slice(0, 2).toUpperCase()}</button
           >
         {/each}
       </div>
@@ -63,7 +57,7 @@
           {#each store.projects as project}
             <button
               class:active={project.id === store.selectedProjectId}
-              class="project-row app-focus-ring group flex min-w-0 items-center gap-2.5 rounded-md border border-transparent py-2.5 pl-2 pr-[11px] text-left transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)] hover:bg-sidebar-accent"
+              class="project-row app-focus-ring group flex min-w-0 items-center rounded-md border border-transparent px-2 py-2.5 text-left transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)] hover:bg-sidebar-accent"
               aria-current={project.id === store.selectedProjectId ? 'page' : undefined}
               onclick={() => store.selectProject(project.id)}
             >
@@ -73,14 +67,6 @@
                   >{project.branch} · {project.lastScanAt}</small
                 ></span
               >
-              <span
-                class:stale={project.status === 'stale'}
-                class:error={project.status === 'error'}
-                class:syncing={project.status === 'syncing'}
-                class="status-dot size-1.5 shrink-0 rounded-full"
-                title={project.status}
-                aria-label={`Project status: ${project.status}`}
-              ></span>
             </button>
           {/each}
         </div>
@@ -164,37 +150,6 @@
   .project-avatar:hover {
     background: color-mix(in oklab, var(--sidebar-accent) 90%, var(--foreground) 10%);
   }
-  .status-dot.stale {
-    background: var(--status-warning);
-  }
-  .status-dot.syncing {
-    background: var(--status-info);
-  }
-  .status-dot.error,
-  .collapsed-status.error {
-    background: var(--status-error);
-  }
-  .collapsed-status {
-    position: absolute;
-    right: -1px;
-    bottom: -1px;
-    width: 7px;
-    height: 7px;
-    border: 1.5px solid var(--sidebar);
-    border-radius: 999px;
-    background: var(--status-success);
-  }
-  .collapsed-status.stale {
-    background: var(--status-warning);
-  }
-  .collapsed-status.syncing {
-    background: var(--status-info);
-  }
-
-  .status-dot {
-    background: var(--status-success);
-  }
-
   @media (max-width: 1200px) {
     .rail-mode-expanded {
       width: 196px;

@@ -4,6 +4,12 @@ const projectMocks = vi.hoisted(() => ({
   loadRegisteredProjects: vi.fn(),
   listInspectorProjects: vi.fn(),
 }));
+const inspectorMocks = vi.hoisted(() => ({
+  listCodegraphRelatedFiles: vi.fn(),
+  loadInspectorSnapshot: vi.fn(),
+  readSourceFile: vi.fn(),
+  snapshotModules: vi.fn(),
+}));
 
 vi.mock('$app/environment', () => ({ browser: false }));
 vi.mock('$app/navigation', () => ({ replaceState: vi.fn() }));
@@ -19,13 +25,26 @@ vi.mock('$lib/adapters/projects', () => ({
   listInspectorProjects: projectMocks.listInspectorProjects,
   registerProjectRoots: vi.fn(),
 }));
+vi.mock('$lib/adapters/inspector', () => inspectorMocks);
 
+import { seedProjects } from '$domain/entities';
 import { InspectorStore } from './inspector.svelte';
 
 describe('InspectorStore workspace restoration', () => {
   beforeEach(() => {
     projectMocks.loadRegisteredProjects.mockReset();
     projectMocks.listInspectorProjects.mockReset();
+    inspectorMocks.listCodegraphRelatedFiles.mockReset();
+    inspectorMocks.loadInspectorSnapshot.mockReset();
+    inspectorMocks.readSourceFile.mockReset();
+    inspectorMocks.snapshotModules.mockReset();
+    inspectorMocks.listCodegraphRelatedFiles.mockResolvedValue([]);
+    inspectorMocks.readSourceFile.mockResolvedValue({
+      text: 'export const checkout = true;',
+      startLine: 1,
+      status: 'current',
+      contentHash: 'sha256:current',
+    });
   });
 
   it('keeps restoration failures distinct from first-launch onboarding', async () => {
@@ -83,5 +102,26 @@ describe('InspectorStore workspace restoration', () => {
 
     expect(store.workspaceHydrated).toBe(true);
     expect(store.needsOnboarding).toBe(true);
+  });
+
+  it('re-reads the selected snapshot without losing view selection', async () => {
+    const store = new InspectorStore();
+    const project = structuredClone(seedProjects[1]);
+    store.projects = [project];
+    store.selectedProjectId = project.id;
+    store.selectedModuleId = 'module-checkout';
+    store.selectedFlowId = 'flow-checkout';
+    store.selectedSourceRefId = 'ref-checkout';
+    inspectorMocks.loadInspectorSnapshot.mockResolvedValue({ projectRevision: 8 });
+    inspectorMocks.snapshotModules.mockReturnValue(project.modules);
+
+    await store.reloadSelectedProjectSnapshot();
+
+    expect(inspectorMocks.loadInspectorSnapshot).toHaveBeenCalledWith(project.id);
+    expect(store.selectedProjectId).toBe(project.id);
+    expect(store.selectedModuleId).toBe('module-checkout');
+    expect(store.selectedFlowId).toBe('flow-checkout');
+    expect(store.selectedSourceRefId).toBe('ref-checkout');
+    expect(store.selectedProject?.revision).toBe(8);
   });
 });

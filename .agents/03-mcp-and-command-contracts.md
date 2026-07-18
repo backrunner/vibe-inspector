@@ -115,6 +115,11 @@ Mutation tools:
 
 MCP tools must call the same domain services as the UI. They may not mutate SQLite directly. `inspector.source.read` returns UTF-8 text plus a content hash and never returns data outside the registered project root.
 
+The desktop UI is a read-only Inspector client. It does not expose lifecycle badges for `draft`,
+`ready`, `stale`, or `needs-review`, and it does not expose a manual content-refresh action. Inspector
+entity writes are initiated through MCP tools; the desktop re-reads the selected project snapshot when
+its window regains focus while preserving the current selection.
+
 ## 4. Agent skill behavior
 
 Codex discovers the repo-owned skills under `.agents/skills`. Users invoke them as

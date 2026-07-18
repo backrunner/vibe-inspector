@@ -1,13 +1,5 @@
 <script lang="ts">
-  import {
-    Check,
-    ChevronRight,
-    FolderGit2,
-    Lightbulb,
-    RefreshCw,
-    TriangleAlert,
-  } from '@lucide/svelte';
-  import { Button } from '$lib/components/ui/button';
+  import { Check, ChevronRight, FolderGit2, Lightbulb, TriangleAlert } from '@lucide/svelte';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
   import * as SegmentedControl from '$lib/components/ui/segmented-control';
   import CodeViewer from '$components/code/CodeViewer.svelte';
@@ -54,11 +46,6 @@
           </div>
           <h1>{flow.name}</h1>
           <p>{flow.summary}</p>
-        </div>
-        <div class="flex shrink-0 items-center gap-2">
-          <Button size="sm" onclick={() => store.refreshSelectedProject()}
-            ><RefreshCw data-icon="inline-start" />Refresh</Button
-          >
         </div>
       </section>
 
@@ -198,9 +185,6 @@
       <strong>{store.selectedProject.name}</strong>
       <h1>Inspector data unavailable</h1>
       <p>{store.inspectorError}</p>
-      <Button size="sm" class="mt-4" onclick={() => store.refreshSelectedProject()}
-        ><RefreshCw data-icon="inline-start" />Retry</Button
-      >
     </div>
   {:else if store.selectedProject}
     <div class="empty-inspector app-state-fill">

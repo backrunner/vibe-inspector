@@ -178,7 +178,7 @@ export class InspectorStore {
 
   openSettings() {
     this.settingsOpen = true;
-    void this.refreshRuntimeHealth();
+    void this.loadRuntimeHealthSnapshot();
   }
 
   openShortcuts() {
@@ -186,7 +186,7 @@ export class InspectorStore {
     this.shortcutsOpen = true;
   }
 
-  async refreshRuntimeHealth() {
+  async loadRuntimeHealthSnapshot() {
     this.runtimeHealthError = '';
     if (!isTauriRuntime()) {
       this.runtimeHealth = {
@@ -402,7 +402,7 @@ export class InspectorStore {
     }
   }
 
-  refreshSelectedProject() {
+  async reloadSelectedProjectSnapshot() {
     if (!this.selectedProjectId || !isTauriRuntime()) return;
     this.pendingSelection = {
       projectId: this.selectedProjectId,
@@ -410,7 +410,7 @@ export class InspectorStore {
       flowId: this.selectedFlowId,
       sourceRefId: this.selectedSourceRefId,
     };
-    void this.hydrateProjectInspector(this.selectedProjectId, true);
+    await this.hydrateProjectInspector(this.selectedProjectId, true);
   }
 
   private async hydrateProjectInspector(projectId: string, restoreSelection: boolean) {
@@ -423,7 +423,7 @@ export class InspectorStore {
       const modules = snapshotModules(snapshot);
       this.projects = this.projects.map((project) =>
         project.id === projectId
-          ? { ...project, modules, revision: snapshot.projectRevision, lastScanAt: 'Current' }
+          ? { ...project, modules, revision: snapshot.projectRevision }
           : project,
       );
       this.inspectorStatus = 'ready';

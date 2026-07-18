@@ -37,7 +37,7 @@ Platform scope for v1: macOS only. The desktop application is launched on demand
 5. App creates stable project IDs, stores canonical roots, and runs a lightweight repository inventory.
 6. Empty project state points the user to the Agent-owned `$inspector-init` repository skill.
 
-Acceptance: a project is never created from an unvalidated path; nested packages inside an identified monorepo are not promoted to separate projects; inaccessible or deleted roots show an explicit stale state.
+Acceptance: a project is never created from an unvalidated path; nested packages inside an identified monorepo are not promoted to separate projects; inaccessible or deleted roots remain unavailable without exposing invalid Inspector content.
 
 ### 4.2 Inspect a module and business flow
 
@@ -68,14 +68,15 @@ Acceptance: MCP health does not depend on a visible window; one tray instance an
 
 ## 5. Information architecture
 
-- Project rail: projects, stale/offline status, recent activity, collapse toggle.
+- Project rail: projects, recent activity, collapse toggle. Inspector lifecycle states remain in
+  MCP/storage data and are not rendered as routine status indicators.
 - Module rail: repository modules in a tree/stub list and flow counts. Initialization remains Agent-owned and is not exposed as a desktop UI action.
 - Inspector workspace: flow header, upper diagram/rationale band, lower source references/read-only code band.
 - Secondary surfaces: command activity, provenance, settings, MCP health, keyboard shortcut help.
 
 ## 6. State model visible to users
 
-Entities expose explicit states: `draft`, `ready`, `stale`, `needs-review`, `syncing`, `error`, and `archived`. Loading is represented by shape-preserving skeletons; empty states provide a next action; errors identify the affected scope and a retry or recovery action.
+Entities expose explicit states to MCP/storage: `draft`, `ready`, `stale`, `needs-review`, `syncing`, `error`, and `archived`. The desktop inspector is a read-only view and does not render routine lifecycle badges or provide manual content refresh controls. Loading is represented by shape-preserving skeletons; empty states provide context; errors identify the affected scope. The selected project snapshot is re-read automatically when the desktop window regains focus.
 
 ## 7. Product acceptance checklist
 

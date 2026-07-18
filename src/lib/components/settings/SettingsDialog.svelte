@@ -1,13 +1,5 @@
 <script lang="ts">
-  import {
-    CheckCircle2,
-    CircleAlert,
-    Keyboard,
-    Moon,
-    RefreshCw,
-    ServerCog,
-    Sun,
-  } from '@lucide/svelte';
+  import { CheckCircle2, CircleAlert, Keyboard, Moon, ServerCog, Sun } from '@lucide/svelte';
   import * as Dialog from '$lib/components/ui/dialog';
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
@@ -62,14 +54,6 @@
             <strong>Background services</strong>
             <span>The independent tray process owns MCP availability.</span>
           </div>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            aria-label="Refresh service health"
-            title="Refresh service health"
-            disabled={store.runtimeHealthStatus === 'loading'}
-            onclick={() => void store.refreshRuntimeHealth()}><RefreshCw /></Button
-          >
         </header>
 
         {#if store.runtimeHealthStatus === 'loading' && !store.runtimeHealth}

@@ -79,7 +79,14 @@
       }
     };
     window.addEventListener('keydown', handleShortcut);
-    return () => window.removeEventListener('keydown', handleShortcut);
+    const handleWindowFocus = () => {
+      void store.reloadSelectedProjectSnapshot();
+    };
+    window.addEventListener('focus', handleWindowFocus);
+    return () => {
+      window.removeEventListener('keydown', handleShortcut);
+      window.removeEventListener('focus', handleWindowFocus);
+    };
   });
 
   $effect(() => {

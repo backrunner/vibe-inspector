@@ -103,9 +103,8 @@ Do not recreate a shadcn control inside a feature directory. Do not put VibeInsp
 - Every icon-only button has an accessible label and tooltip/title.
 - Keyboard focus uses `--ring`; focus must remain visible on Zinc surfaces.
 - Selected rows use a restrained muted fill plus border; never a saturated full-row color.
-- Project status dots align to the same right-hand action axis as the project rail add button.
 - Hover changes background or foreground only; no large translate/scale movement.
-- Preserve the selected project, module, flow, and file across refreshes.
+- Preserve the selected project, module, flow, and file across automatic snapshot reloads.
 - Respect `prefers-reduced-motion`; ordinary transitions stay within 120-180ms.
 - Rail expansion uses a 260ms grid-track transition with a short opacity/translate content reveal. Reduced motion removes both transitions.
 - Inline errors remain next to the affected scope; toast is only for transient confirmation.

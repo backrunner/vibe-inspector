@@ -6,7 +6,9 @@
 - Process isolation: the always-on tray/MCP runtime does not share UI lifecycle assumptions with the Tauri window.
 - Domain-first: parsing, path validation, identity, and mutation rules live outside UI adapters.
 - Evidence over assertion: every AI-derived field carries provenance and confidence; source references are immutable observations until replaced by a sync.
-- Read-only inspection: the app may read repository files but never writes source files in v1.
+- Read-only inspection: the app may read repository files and MCP-owned inspector snapshots but never
+  writes source files or inspector entities from the desktop UI in v1. Inspector entity writes flow
+  through MCP/domain commands; the desktop re-reads the selected snapshot when the window regains focus.
 
 ## 2. Process topology
 
@@ -99,7 +101,8 @@ Do not let `+page.svelte`, `main.rs`, or an MCP handler become a catch-all. Comp
 3. Domain service checks project root, authorization scope, current entity version, and idempotency key.
 4. Repository reads SQLite/JSON metadata and the filesystem broker reads only inside the canonical root.
 5. Result is a serializable DTO with `revision`, `updatedAt`, `provenance`, and stale/error information.
-6. UI store updates optimistically only for local view state; persisted mutations update after server confirmation.
+6. UI store updates optimistically only for local view state; persisted Inspector mutations originate
+   from MCP/domain commands, and the desktop consumes a fresh selected snapshot on window focus.
 
 Tray settings follow a separate narrow control path: the WebView invokes a typed Tauri command, the desktop sends a boolean control message over the protected Unix socket, and the tray process updates its own LaunchAgent and menu state. The WebView never receives the MCP token or invokes `launchctl` directly.
 
