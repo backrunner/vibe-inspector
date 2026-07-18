@@ -9,12 +9,12 @@
 
 <aside
   class:collapsed={store.projectRailCollapsed}
-  class="project-rail flex min-w-0 flex-col border-r border-sidebar-border text-sidebar-foreground"
+  class="project-rail flex min-w-0 flex-col text-sidebar-foreground"
   aria-label="Projects"
 >
   {#if store.projectRailCollapsed}
     <div class="rail-mode rail-mode-collapsed">
-      <div class="grid h-11 shrink-0 place-items-center border-b border-sidebar-border">
+      <div class="rail-header grid h-11 shrink-0 place-items-center">
         <IconButton
           label="Expand project rail"
           icon={PanelLeftOpen}
@@ -42,9 +42,7 @@
     </div>
   {:else}
     <div class="rail-mode rail-mode-expanded">
-      <div
-        class="flex h-11 shrink-0 items-center justify-between border-b border-sidebar-border px-2 pl-4"
-      >
+      <div class="rail-header flex h-11 shrink-0 items-center justify-between px-2 pl-4">
         <span class="text-[13px] font-semibold">Projects</span>
         <div class="flex items-center">
           <IconButton
@@ -97,9 +95,30 @@
 
 <style>
   .project-rail {
+    position: relative;
+    z-index: 2;
     width: 100%;
     overflow: hidden;
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-xl);
     background: var(--project-rail-surface);
+    box-shadow: var(--panel-shadow);
+  }
+
+  .rail-header {
+    position: relative;
+    background: var(--rail-header-surface);
+    box-shadow: var(--rail-header-shadow);
+  }
+
+  .rail-header::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .rail-mode {

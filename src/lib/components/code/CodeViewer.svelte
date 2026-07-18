@@ -9,7 +9,6 @@
     lineNumberMinChars,
     loadEditorLanguage,
     readonlyEditorOptions,
-    shortContentHash,
   } from '$lib/adapters/editor';
 
   let {
@@ -38,7 +37,7 @@
   let languageRequest = 0;
 
   const lineCount = $derived(code.split('\n').length);
-  const displayedContentHash = $derived(shortContentHash(file.contentHash));
+  const hasHighlightedRange = $derived(file.origin !== 'codegraph');
 
   function editorTheme(currentTheme: 'dark' | 'light') {
     return currentTheme === 'dark' ? 'vibe-inspector-dark' : 'vibe-inspector-light';
@@ -77,8 +76,17 @@
 
   function highlightReference() {
     if (!editor || !monaco) return;
-    const localStart = Math.max(1, file.startLine - codeStartLine + 1);
-    const localEnd = Math.max(localStart, file.endLine - codeStartLine + 1);
+    if (!hasHighlightedRange) {
+      decorationIds = editor.deltaDecorations(decorationIds, []);
+      editor.revealLine(1);
+      return;
+    }
+    const modelLineCount = editor.getModel()?.getLineCount() ?? 1;
+    const localStart = Math.min(modelLineCount, Math.max(1, file.startLine - codeStartLine + 1));
+    const localEnd = Math.min(
+      modelLineCount,
+      Math.max(localStart, file.endLine - codeStartLine + 1),
+    );
     decorationIds = editor.deltaDecorations(decorationIds, [
       {
         range: new monaco.Range(localStart, 1, localEnd, 1),
@@ -98,7 +106,9 @@
 
   async function copyPath() {
     if (typeof navigator === 'undefined') return;
-    await navigator.clipboard?.writeText(`${file.path}:${file.startLine}`);
+    await navigator.clipboard?.writeText(
+      file.origin === 'codegraph' ? file.path : `${file.path}:${file.startLine}`,
+    );
     copied = true;
     window.setTimeout(() => (copied = false), 1600);
   }
@@ -196,8 +206,7 @@
       </div>
     </div>
     <div class="code-meta">
-      <span class="readonly-lock"><LockKeyhole aria-hidden="true" /> read only</span>
-      <span>{lineCount} lines</span>
+      <span>{lineCount} total lines</span>
       <button class="copy-path app-focus-ring" onclick={copyPath} aria-label="Copy source path">
         {#if copied}<Check aria-hidden="true" />{:else}<Copy aria-hidden="true" />{/if}
         {copied ? 'Copied' : 'Copy path'}
@@ -216,13 +225,13 @@
     {/if}
   </div>
   <footer class="code-footer">
-    <span><span class="range-marker"></span> referenced lines {file.startLine}-{file.endLine}</span>
-    <span
-      class:stale={readStatus === 'stale'}
-      class="content-hash"
-      title={`Content hash: ${file.contentHash}`}
-      >{readStatus === 'stale' ? 'stale · ' : ''}hash {displayedContentHash}</span
-    >
+    <span class:stale={readStatus === 'stale'}>
+      <span class="range-marker"></span>
+      {readStatus === 'stale' ? 'stale source · ' : ''}{hasHighlightedRange
+        ? `highlighted lines ${file.startLine}-${file.endLine}`
+        : 'CodeGraph related file'}
+    </span>
+    <span class="readonly-lock"><LockKeyhole aria-hidden="true" /> read only</span>
   </footer>
 </section>
 
@@ -234,7 +243,6 @@
     min-height: 220px;
     grid-template-rows: auto minmax(0, 1fr) auto;
     overflow: hidden;
-    border: 1px solid var(--panel-border);
     border-radius: var(--radius-lg);
     background: var(--card);
     box-shadow: var(--panel-shadow);
@@ -242,13 +250,13 @@
   }
 
   .code-card.embedded {
-    border: 0;
     border-radius: 0;
     box-shadow: none;
   }
 
   .code-header,
   .code-footer {
+    position: relative;
     display: flex;
     width: 100%;
     min-width: 0;
@@ -258,16 +266,33 @@
     gap: 12px;
     padding: 0 13px;
     overflow: hidden;
-    border-bottom: 1px solid var(--border);
+    background: var(--panel-header-surface);
+    box-shadow: 0 10px 20px -23px color-mix(in oklab, var(--foreground) 24%, transparent);
+  }
+
+  .code-header::after,
+  .code-footer::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .code-footer {
     min-height: 28px;
-    border-top: 1px solid var(--border);
-    border-bottom: 0;
     color: var(--muted-foreground);
+    background: var(--panel-footer-surface);
+    box-shadow: 0 -10px 20px -23px color-mix(in oklab, var(--foreground) 24%, transparent);
     font-family: var(--app-font-mono);
     font-size: 10px;
+  }
+
+  .code-footer::after {
+    top: 0;
+    bottom: auto;
   }
 
   .code-footer > span {
@@ -291,15 +316,8 @@
     background: var(--signal);
   }
 
-  .content-hash.stale {
+  .code-footer > span.stale {
     color: var(--status-warning);
-  }
-
-  .content-hash {
-    max-width: 46%;
-    flex: 0 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   .file-heading,
@@ -368,7 +386,8 @@
 
   .readonly-lock {
     gap: 4px;
-    color: var(--status-success);
+    flex: 0 0 auto;
+    color: var(--muted-foreground);
   }
 
   .readonly-lock :global(svg),
@@ -380,9 +399,9 @@
     --app-focus-ring-offset: -3px;
 
     gap: 5px;
-    padding: 4px 0 4px 7px;
+    padding: 4px 5px 4px 7px;
     border: 0;
-    border-left: 1px solid var(--border);
+    border-radius: var(--radius-compact);
     color: var(--muted-foreground);
     background: transparent;
     cursor: pointer;
@@ -391,6 +410,17 @@
 
   .copy-path:hover {
     color: var(--foreground);
+  }
+
+  .copy-path:active {
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--muted) 56%, transparent);
+  }
+
+  .copy-path:disabled {
+    color: var(--muted-foreground);
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 
   .editor-shell {

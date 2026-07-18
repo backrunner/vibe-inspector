@@ -22,6 +22,13 @@ pub struct ReadSourceInput {
     pub expected_hash: Option<String>,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadSourceFileInput {
+    pub relative_path: String,
+    pub expected_hash: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SourceRange {
@@ -42,29 +49,7 @@ pub enum SourceRangeStatus {
 
 pub fn read_source_range(root: &Path, input: ReadSourceInput) -> Result<SourceRange, AppError> {
     validate_line_range(input.start_line, input.end_line)?;
-    let canonical_root = canonical_root(root)?;
-    let relative_path = validated_relative_path(&input.relative_path)?;
-    let candidate = canonical_root.join(&relative_path);
-    let canonical_file = fs::canonicalize(&candidate)
-        .map_err(|_| AppError::SourceUnreadable(input.relative_path.clone()))?;
-    if !canonical_file.starts_with(&canonical_root) {
-        return Err(AppError::PathTraversal(input.relative_path));
-    }
-    let metadata = fs::metadata(&canonical_file)
-        .map_err(|_| AppError::SourceUnreadable(input.relative_path.clone()))?;
-    if !metadata.is_file() {
-        return Err(AppError::SourceUnreadable(input.relative_path));
-    }
-    if metadata.len() > MAX_SOURCE_FILE_BYTES {
-        return Err(AppError::SourceTooLarge {
-            path: input.relative_path,
-            bytes: metadata.len(),
-            limit: MAX_SOURCE_FILE_BYTES,
-        });
-    }
-
-    let bytes = fs::read(&canonical_file)
-        .map_err(|_| AppError::SourceUnreadable(input.relative_path.clone()))?;
+    let (relative_path, bytes) = read_validated_source(root, &input.relative_path)?;
     let source = std::str::from_utf8(&bytes)
         .map_err(|_| AppError::SourceUnreadable(input.relative_path.clone()))?;
     let content_hash = sha256_hex(&bytes);
@@ -113,6 +98,26 @@ pub fn read_source_range(root: &Path, input: ReadSourceInput) -> Result<SourceRa
     })
 }
 
+pub fn read_source_file(root: &Path, input: ReadSourceFileInput) -> Result<SourceRange, AppError> {
+    let (relative_path, bytes) = read_validated_source(root, &input.relative_path)?;
+    let source = std::str::from_utf8(&bytes)
+        .map_err(|_| AppError::SourceUnreadable(input.relative_path.clone()))?;
+    let content_hash = sha256_hex(&bytes);
+    let status = match input.expected_hash {
+        Some(expected) if expected != content_hash => SourceRangeStatus::Stale,
+        _ => SourceRangeStatus::Current,
+    };
+
+    Ok(SourceRange {
+        relative_path: path_string(&relative_path),
+        start_line: 1,
+        end_line: source.split('\n').count(),
+        text: source.to_string(),
+        content_hash,
+        status,
+    })
+}
+
 fn validate_line_range(start_line: usize, end_line: usize) -> Result<(), AppError> {
     let line_count = end_line.saturating_sub(start_line).saturating_add(1);
     if start_line == 0 || end_line < start_line || line_count > MAX_RETURNED_LINES {
@@ -124,7 +129,7 @@ fn validate_line_range(start_line: usize, end_line: usize) -> Result<(), AppErro
     Ok(())
 }
 
-fn canonical_root(root: &Path) -> Result<PathBuf, AppError> {
+pub(crate) fn canonical_root(root: &Path) -> Result<PathBuf, AppError> {
     let canonical = fs::canonicalize(root).map_err(|_| AppError::InvalidPath(path_string(root)))?;
     if !canonical.is_dir() {
         return Err(AppError::NotDirectory(path_string(&canonical)));
@@ -132,7 +137,7 @@ fn canonical_root(root: &Path) -> Result<PathBuf, AppError> {
     Ok(canonical)
 }
 
-fn validated_relative_path(value: &str) -> Result<PathBuf, AppError> {
+pub(crate) fn validated_relative_path(value: &str) -> Result<PathBuf, AppError> {
     let path = Path::new(value);
     if value.is_empty() || path.is_absolute() {
         return Err(AppError::PathTraversal(value.to_string()));
@@ -151,6 +156,48 @@ fn validated_relative_path(value: &str) -> Result<PathBuf, AppError> {
         return Err(AppError::PathTraversal(value.to_string()));
     }
     Ok(clean)
+}
+
+pub(crate) fn validated_source_path(root: &Path, value: &str) -> Result<PathBuf, AppError> {
+    let canonical_root = canonical_root(root)?;
+    let relative_path = validated_relative_path(value)?;
+    let canonical_file = fs::canonicalize(canonical_root.join(&relative_path))
+        .map_err(|_| AppError::SourceUnreadable(value.to_string()))?;
+    if !canonical_file.starts_with(&canonical_root) {
+        return Err(AppError::PathTraversal(value.to_string()));
+    }
+    if !fs::metadata(&canonical_file)
+        .map_err(|_| AppError::SourceUnreadable(value.to_string()))?
+        .is_file()
+    {
+        return Err(AppError::SourceUnreadable(value.to_string()));
+    }
+    Ok(relative_path)
+}
+
+fn read_validated_source(root: &Path, value: &str) -> Result<(PathBuf, Vec<u8>), AppError> {
+    let canonical_root = canonical_root(root)?;
+    let relative_path = validated_relative_path(value)?;
+    let canonical_file = fs::canonicalize(canonical_root.join(&relative_path))
+        .map_err(|_| AppError::SourceUnreadable(value.to_string()))?;
+    if !canonical_file.starts_with(&canonical_root) {
+        return Err(AppError::PathTraversal(value.to_string()));
+    }
+    let metadata =
+        fs::metadata(&canonical_file).map_err(|_| AppError::SourceUnreadable(value.to_string()))?;
+    if !metadata.is_file() {
+        return Err(AppError::SourceUnreadable(value.to_string()));
+    }
+    if metadata.len() > MAX_SOURCE_FILE_BYTES {
+        return Err(AppError::SourceTooLarge {
+            path: value.to_string(),
+            bytes: metadata.len(),
+            limit: MAX_SOURCE_FILE_BYTES,
+        });
+    }
+    let bytes =
+        fs::read(&canonical_file).map_err(|_| AppError::SourceUnreadable(value.to_string()))?;
+    Ok((relative_path, bytes))
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
@@ -238,6 +285,45 @@ mod tests {
     }
 
     #[test]
+    fn reads_a_complete_file_and_preserves_trailing_lines() {
+        let directory = TestDirectory::new("complete-file");
+        fs::write(directory.path().join("source.rs"), "one\ntwo\nthree\n").expect("write source");
+
+        let source = read_source_file(
+            directory.path(),
+            ReadSourceFileInput {
+                relative_path: "source.rs".to_string(),
+                expected_hash: None,
+            },
+        )
+        .expect("read complete file");
+
+        assert_eq!(source.start_line, 1);
+        assert_eq!(source.end_line, 4);
+        assert_eq!(source.text, "one\ntwo\nthree\n");
+        assert_eq!(source.status, SourceRangeStatus::Current);
+    }
+
+    #[test]
+    fn complete_file_reads_handle_empty_text_and_stale_hashes() {
+        let directory = TestDirectory::new("empty-file");
+        fs::write(directory.path().join("empty.txt"), "").expect("write empty source");
+
+        let source = read_source_file(
+            directory.path(),
+            ReadSourceFileInput {
+                relative_path: "empty.txt".to_string(),
+                expected_hash: Some("outdated".to_string()),
+            },
+        )
+        .expect("read empty file");
+
+        assert_eq!(source.end_line, 1);
+        assert!(source.text.is_empty());
+        assert_eq!(source.status, SourceRangeStatus::Stale);
+    }
+
+    #[test]
     fn rejects_parent_traversal_and_large_ranges() {
         let directory = TestDirectory::new("validation");
         assert!(matches!(
@@ -264,6 +350,16 @@ mod tests {
             ),
             Err(AppError::InvalidLineRange { .. })
         ));
+        assert!(matches!(
+            read_source_file(
+                directory.path(),
+                ReadSourceFileInput {
+                    relative_path: "../secret".to_string(),
+                    expected_hash: None,
+                }
+            ),
+            Err(AppError::PathTraversal(_))
+        ));
     }
 
     #[cfg(unix)]
@@ -287,6 +383,18 @@ mod tests {
             },
         );
         assert!(matches!(result, Err(AppError::PathTraversal(_))));
+
+        let complete_result = read_source_file(
+            root.path(),
+            ReadSourceFileInput {
+                relative_path: "escape.txt".to_string(),
+                expected_hash: None,
+            },
+        );
+        assert!(matches!(
+            complete_result,
+            Err(AppError::PathTraversal(_))
+        ));
     }
 
     #[test]
@@ -307,5 +415,17 @@ mod tests {
             },
         );
         assert!(matches!(result, Err(AppError::SourceTooLarge { .. })));
+
+        let complete_result = read_source_file(
+            directory.path(),
+            ReadSourceFileInput {
+                relative_path: "large.txt".to_string(),
+                expected_hash: None,
+            },
+        );
+        assert!(matches!(
+            complete_result,
+            Err(AppError::SourceTooLarge { .. })
+        ));
     }
 }

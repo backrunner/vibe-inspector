@@ -4,7 +4,6 @@ import {
   languageForPath,
   lineNumberMinChars,
   readonlyEditorOptions,
-  shortContentHash,
 } from './editor';
 
 describe('readonly editor adapter', () => {
@@ -31,6 +30,7 @@ describe('readonly editor adapter', () => {
       fontFamily: 'SF Mono, monospace',
       fontSize: 13,
       lineHeight: 20,
+      lineDecorationsWidth: 8,
     });
     expect(typeof options.lineNumbers).toBe('function');
     expect((options.lineNumbers as (line: number) => string)(2)).toBe('42');
@@ -46,13 +46,8 @@ describe('readonly editor adapter', () => {
   });
 
   it('sizes the gutter from the displayed source line numbers', () => {
-    expect(lineNumberMinChars('one\ntwo', 41)).toBe(3);
+    expect(lineNumberMinChars('one\ntwo', 41)).toBe(4);
     expect(lineNumberMinChars('one\ntwo', 120_340)).toBe(6);
-  });
-
-  it('shortens long content hashes without changing short fixture hashes', () => {
-    expect(shortContentHash('a93d2f1')).toBe('a93d2f1');
-    expect(shortContentHash('0123456789abcdef'.repeat(4))).toBe('0123456789ab');
   });
 
   it.each([

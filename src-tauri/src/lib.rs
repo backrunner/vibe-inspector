@@ -1,3 +1,4 @@
+mod codegraph;
 mod codex_history;
 pub mod command_service;
 pub mod error;
@@ -14,7 +15,9 @@ use tauri::Manager;
 
 use codex_history::{scan_default_codex_history, CodexHistoryScanResult, ScanCodexHistoryInput};
 use error::AppError;
-use fs_broker::{read_source_range, ReadSourceInput, SourceRange};
+use fs_broker::{
+    read_source_file, read_source_range, ReadSourceFileInput, ReadSourceInput, SourceRange,
+};
 use inspector::InspectorSnapshot;
 use mcp::ActivityList;
 use project_discovery::{DiscoverProjectsInput, ProjectDiscoveryResult};
@@ -178,6 +181,21 @@ struct ReadProjectSourceInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct ReadProjectFileInput {
+    project_id: String,
+    relative_path: String,
+    expected_hash: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ListCodegraphRelatedFilesInput {
+    project_id: String,
+    relative_paths: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct LoadInspectorSnapshotInput {
     project_id: String,
 }
@@ -255,6 +273,45 @@ async fn read_project_source(
     .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
 }
 
+#[tauri::command]
+async fn read_project_file(
+    app: tauri::AppHandle,
+    input: ReadProjectFileInput,
+) -> Result<SourceRange, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let database = InspectorDatabase::for_app(&app)?;
+        database.initialize()?;
+        let project = database.project(&input.project_id)?;
+        read_source_file(
+            std::path::Path::new(&project.root_path),
+            ReadSourceFileInput {
+                relative_path: input.relative_path,
+                expected_hash: input.expected_hash,
+            },
+        )
+    })
+    .await
+    .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
+}
+
+#[tauri::command]
+async fn list_codegraph_related_files(
+    app: tauri::AppHandle,
+    input: ListCodegraphRelatedFilesInput,
+) -> Result<Vec<String>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let database = InspectorDatabase::for_app(&app)?;
+        database.initialize()?;
+        let project = database.project(&input.project_id)?;
+        codegraph::related_files(
+            std::path::Path::new(&project.root_path),
+            &input.relative_paths,
+        )
+    })
+    .await
+    .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let tray_paths = TrayPaths::for_macos_user().ok();
@@ -300,7 +357,9 @@ pub fn run() {
             list_inspector_projects,
             load_inspector_snapshot,
             list_inspector_activity,
-            read_project_source
+            read_project_source,
+            read_project_file,
+            list_codegraph_related_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running VibeInspector");

@@ -2,9 +2,11 @@
   import { Skeleton } from '$lib/components/ui/skeleton';
 </script>
 
-<div class="viewer-skeleton" aria-label="Loading source range" aria-busy="true">
+<div class="viewer-skeleton" aria-label="Loading source file" aria-busy="true">
   <header>
-    <div class="file-heading"><Skeleton class="size-6 rounded-md" /><Skeleton class="h-3 w-48" /></div>
+    <div class="file-heading">
+      <Skeleton class="size-6 rounded-md" /><Skeleton class="h-3 w-48" />
+    </div>
     <Skeleton class="h-3 w-24" />
   </header>
   <div class="code-lines">
@@ -35,15 +37,33 @@
 
   .viewer-skeleton > header,
   .viewer-skeleton > footer {
+    position: relative;
     justify-content: space-between;
     gap: 12px;
     padding: 0 13px;
-    border-bottom: 1px solid var(--border);
+    background: var(--panel-header-surface);
+    box-shadow: 0 10px 20px -23px color-mix(in oklab, var(--foreground) 24%, transparent);
+  }
+
+  .viewer-skeleton > header::after,
+  .viewer-skeleton > footer::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .viewer-skeleton > footer {
-    border-top: 1px solid var(--border);
-    border-bottom: 0;
+    background: var(--panel-footer-surface);
+    box-shadow: 0 -10px 20px -23px color-mix(in oklab, var(--foreground) 24%, transparent);
+  }
+
+  .viewer-skeleton > footer::after {
+    top: 0;
+    bottom: auto;
   }
 
   .file-heading {

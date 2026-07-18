@@ -33,6 +33,8 @@ Versions are locked in `pnpm-lock.yaml` and `src-tauri/Cargo.lock`. Update this 
 | Project identity      | Rust `uuid` with UUIDv7                             | Opaque time-sortable IDs for confirmed manual project registrations            | IDs are created in Rust after root revalidation, never from display names                                           |
 | Testing               | Vitest, svelte-check, Playwright CLI, Cargo tests   | Domain, compile, browser, and desktop coverage                                 | Visual checks do not replace path-security or idempotency tests                                                     |
 
+CodeGraph uses the existing `rusqlite` dependency only to query a project-owned `.codegraph/codegraph.db` in read-only mode. VibeInspector never creates, migrates, or mutates that index.
+
 ## shadcn/Bits UI contract
 
 Generated components are project-owned and imported from stable local paths:

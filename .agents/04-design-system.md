@@ -11,12 +11,13 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 - Zinc is the dominant palette in light and dark modes.
 - Blue is a narrow signal for selection, focused evidence, and links; it is not a page theme.
 - Green, amber, and red appear only for semantic status.
-- Use one restrained Zinc gradient across the full application frame. Project and module rails stay transparent over that shared plane; crisp separators, selected rows, and framed tools provide hierarchy without turning each rail into a colour block.
-- Crisp borders and spacing define structure. Rounded containers must retain a precise 1px edge so the application feels engineered rather than soft or inflated.
+- Use one restrained Zinc gradient across the full application frame. Projects, Architecture, and Inspector are three sibling workspace panels with the same translucent Zinc surface, soft rounded frame, and restrained shadow.
+- Internal panel dividers may use a crisp 1px line, but keep the divider inset from rounded edges so it starts and ends with visible breathing room. Reserve stronger borders for focused controls, selected rows, and semantic states.
 - Use a four-level depth scale: compact controls, repeated raised items, independent tool panels, and dialogs. Every shadow includes a restrained inner highlight and a Zinc-tinted outer shadow; elevation must still communicate real hierarchy rather than decorate every row.
 - Keep a consistent soft-corner system: 12px for framed tools, 10-15px for repeated raised items and dialogs, and 6-10px for compact controls. Interior panes may stay square when they are clipped by a rounded parent. Pill shapes remain reserved for status indicators.
 - A low-contrast Zinc-on-Zinc gradient spans the entire window to prevent a flat single-plane background. It may carry only a trace of signal blue, must remain subordinate to content, and must work in both themes.
 - No colorful gradient blobs, glass, glow, decorative background shapes, nested cards, oversized headings, or marketing composition.
+- Liquid Glass is reserved for a single navigation/control plane and must use actual pixel displacement rather than blur alone. Never apply it to content panels, list rows, trees, dialogs, or code surfaces; provide reduced-transparency, increased-contrast, and reduced-motion fallbacks.
 
 ## 2. Layout
 
@@ -57,10 +58,13 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 --status-info;
 --app-backdrop;
 --workspace-surface;
+--workspace-panel-surface;
 --project-rail-surface;
 --module-rail-surface;
 --titlebar-surface;
 --panel-border;
+--panel-edge;
+--panel-divider;
 --control-shadow;
 --control-shadow-active;
 --inset-shadow;
@@ -115,8 +119,9 @@ Do not recreate a shadcn control inside a feature directory. Do not put VibeInsp
 - The rationale is readable at `45-60ch` and explains architectural tradeoffs, not implementation narration.
 - Rationale body text is at least `12px` in the desktop baseline. Confidence and metadata may be smaller, but never determine the reading size.
 - Monaco uses `readOnly` and `domReadOnly`, disables context editing, hides the minimap, and highlights referenced lines.
+- The selected source opens as the complete file within the desktop read limit; persisted source ranges are highlighted in place. The editor header reports total lines, while the footer reports the highlighted range and keeps the read-only marker on the right.
 - File rows show name, path, and line range with clear selected/stale states.
-- The source rail is a keyboard-accessible hierarchical tree. Folders sort before files and repeated ranges for one file are aggregated.
+- The source rail is a keyboard-accessible hierarchical tree with horizontal scrolling for long paths. Folders sort before files, repeated ranges for one file are aggregated, and optional CodeGraph-related files are identified without pretending to have an evidence range.
 
 ## 8. Secondary surfaces
 

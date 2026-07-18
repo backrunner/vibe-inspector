@@ -10,6 +10,7 @@ export type SourceRef = {
   label: string;
   status: 'current' | 'stale' | 'unreadable';
   contentHash: string;
+  origin?: 'evidence' | 'codegraph';
   revision?: number;
 };
 
@@ -238,6 +239,51 @@ const inspectorAdapterCode = `export function snapshotModules(snapshot: Inspecto
         })),
         edges: flow.graph.edges,
       },`;
+
+const sourceTreeCode = `import type { SourceRef } from './entities';
+
+export type SourceTreeFile = {
+  kind: 'file';
+  id: string;
+  name: string;
+  path: string;
+  refs: SourceRef[];
+};
+
+export function buildSourceTree(sourceRefs: SourceRef[]): SourceTreeNode[] {
+  const root = createFolder('', '');
+  for (const sourceRef of sourceRefs) {
+    insertSourceReference(root, sourceRef);
+  }
+  return materialize(root);
+}
+
+export function sourceTreeFileCount(nodes: SourceTreeNode[]): number {
+  return nodes.reduce(
+    (count, node) => count + (node.kind === 'file' ? 1 : sourceTreeFileCount(node.children)),
+    0,
+  );
+}`;
+
+const editorAdapterCode = `export function readonlyEditorOptions(input: ReadonlyEditorOptionsInput) {
+  return {
+    value: input.value,
+    language: languageForPath(input.path),
+    theme: input.theme,
+    readOnly: true,
+    domReadOnly: true,
+    contextmenu: false,
+    quickSuggestions: false,
+    minimap: { enabled: false },
+    lineNumbers: (lineNumber: number) => String(lineNumber + input.codeStartLine - 1),
+    lineNumbersMinChars: lineNumberMinChars(input.value, input.codeStartLine),
+    glyphMargin: false,
+    folding: true,
+    wordWrap: 'off',
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+  };
+}`;
 
 const checkoutFlow: Flow = {
   id: 'flow-checkout',
@@ -566,6 +612,8 @@ const inspectorFlow: Flow = {
     'src-tauri/src/command_service/mod.rs': inspectorCommandCode,
     'src-tauri/src/command_service/normalize.rs': inspectorNormalizeCode,
     'src/lib/adapters/inspector.ts': inspectorAdapterCode,
+    'src/lib/adapters/editor.ts': editorAdapterCode,
+    'src/lib/domain/source-tree.ts': sourceTreeCode,
   },
 };
 

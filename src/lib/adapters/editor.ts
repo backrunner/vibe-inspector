@@ -62,6 +62,7 @@ export function readonlyEditorOptions({
     minimap: { enabled: false },
     lineNumbers: (lineNumber) => String(lineNumber + codeStartLine - 1),
     lineNumbersMinChars: lineNumberMinChars(value, codeStartLine),
+    lineDecorationsWidth: 8,
     glyphMargin: false,
     folding: true,
     renderLineHighlight: 'all',
@@ -82,11 +83,7 @@ export function readonlyEditorOptions({
 export function lineNumberMinChars(value: string, codeStartLine: number): number {
   const lineCount = value.split('\n').length;
   const finalLine = Math.max(1, codeStartLine) + lineCount - 1;
-  return Math.max(3, String(finalLine).length);
-}
-
-export function shortContentHash(hash: string): string {
-  return hash.length > 12 ? hash.slice(0, 12) : hash;
+  return Math.max(4, String(finalLine).length);
 }
 
 export function languageForPath(path: string): EditorLanguage {

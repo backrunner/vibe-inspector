@@ -34,35 +34,53 @@
 <style>
   .shell-skeleton {
     display: grid;
+    box-sizing: border-box;
     min-width: 0;
     min-height: 0;
     flex: 1;
     grid-template-columns: 216px 280px minmax(0, 1fr);
+    gap: 8px;
+    padding: 0 8px 8px;
     background: transparent;
   }
 
   .project-placeholder,
   .module-placeholder {
     min-width: 0;
-    border-right: 1px solid var(--border);
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--panel-shadow);
   }
 
   .project-placeholder {
-    background: transparent;
+    background: var(--project-rail-surface);
   }
 
   .module-placeholder {
-    background: transparent;
+    background: var(--module-rail-surface);
   }
 
   .project-placeholder > header,
   .module-placeholder > header {
+    position: relative;
     display: flex;
     height: 44px;
     align-items: center;
     justify-content: space-between;
     padding: 0 10px 0 16px;
-    border-bottom: 1px solid var(--border);
+    background: var(--rail-header-surface);
+    box-shadow: var(--rail-header-shadow);
+  }
+
+  .project-placeholder > header::after,
+  .module-placeholder > header::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .module-placeholder > header > span {

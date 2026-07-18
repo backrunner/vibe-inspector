@@ -21,8 +21,9 @@ import {
   type StoredInspectorProject,
 } from '$lib/adapters/projects';
 import {
+  listCodegraphRelatedFiles,
   loadInspectorSnapshot,
-  readSourceReference,
+  readSourceFile,
   snapshotModules,
 } from '$lib/adapters/inspector';
 import { loadInspectorActivity, type CommandRun, type McpAuditEvent } from '$lib/adapters/activity';
@@ -52,6 +53,7 @@ export class InspectorStore {
   sourceCode = $state('');
   sourceStartLine = $state(1);
   sourceReadStatus = $state<'current' | 'stale' | 'unreadable'>('current');
+  relatedSourceRefs = $state<SourceRef[]>([]);
   activityStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
   activityError = $state('');
   commandRuns = $state<CommandRun[]>([]);
@@ -62,6 +64,7 @@ export class InspectorStore {
   loginItemUpdating = $state(false);
   private inspectorRequest = 0;
   private sourceRequest = 0;
+  private relatedSourceRequest = 0;
   private viewStateFrame = 0;
   private pendingSelection: {
     projectId?: string;
@@ -91,9 +94,13 @@ export class InspectorStore {
 
   get selectedSourceRef(): SourceRef | undefined {
     return (
-      this.selectedFlow?.sourceRefs.find((ref) => ref.id === this.selectedSourceRefId) ??
-      this.selectedFlow?.sourceRefs[0]
+      this.visibleSourceRefs.find((ref) => ref.id === this.selectedSourceRefId) ??
+      this.visibleSourceRefs[0]
     );
+  }
+
+  get visibleSourceRefs(): SourceRef[] {
+    return this.selectedFlow ? [...this.selectedFlow.sourceRefs, ...this.relatedSourceRefs] : [];
   }
 
   get visibleModules(): Module[] {
@@ -111,6 +118,7 @@ export class InspectorStore {
     this.selectedModuleId = '';
     this.selectedFlowId = '';
     this.selectedSourceRefId = '';
+    this.relatedSourceRefs = [];
     this.sourceCode = '';
     this.sourceStatus = 'idle';
     this.persistViewState();
@@ -299,7 +307,6 @@ export class InspectorStore {
     this.selectedFlowId = 'flow-inspector-refresh';
     this.selectedSourceRefId = 'ref-inspector';
     this.applyPendingSelection();
-    void this.loadSelectedSource();
     this.workspaceHydrated = true;
   }
 
@@ -337,8 +344,10 @@ export class InspectorStore {
     const flow = module.flows[0];
     this.selectedFlowId = flow?.id ?? '';
     this.selectedSourceRefId = flow?.sourceRefs[0]?.id ?? '';
+    this.relatedSourceRefs = [];
     this.persistViewState();
     void this.loadSelectedSource();
+    void this.refreshRelatedSources();
   }
 
   selectFlow(moduleId: string, flowId: string) {
@@ -348,8 +357,10 @@ export class InspectorStore {
     this.selectedModuleId = module.id;
     this.selectedFlowId = flow.id;
     this.selectedSourceRefId = flow.sourceRefs[0]?.id ?? '';
+    this.relatedSourceRefs = [];
     this.persistViewState();
     void this.loadSelectedSource();
+    void this.refreshRelatedSources();
   }
 
   selectSourceRef(refId: string) {
@@ -433,8 +444,10 @@ export class InspectorStore {
     this.selectedModuleId = first?.module.id ?? project.modules[0]?.id ?? '';
     this.selectedFlowId = first?.flow.id ?? '';
     this.selectedSourceRefId = first?.flow.sourceRefs[0]?.id ?? '';
+    this.relatedSourceRefs = [];
     this.persistViewState();
     void this.loadSelectedSource();
+    void this.refreshRelatedSources();
   }
 
   private async loadSelectedSource() {
@@ -460,15 +473,18 @@ export class InspectorStore {
         this.sourceReadStatus = 'unreadable';
         return;
       }
-      this.sourceCode = code;
-      this.sourceStartLine = source.startLine;
+      this.sourceCode =
+        source.origin === 'codegraph'
+          ? code
+          : previewSourceFile(code, source.startLine, source.endLine);
+      this.sourceStartLine = 1;
       this.sourceStatus = 'ready';
       return;
     }
 
     this.sourceStatus = 'loading';
     try {
-      const result = await readSourceReference(project.id, source);
+      const result = await readSourceFile(project.id, source);
       if (request !== this.sourceRequest) return;
       this.sourceCode = result.text;
       this.sourceStartLine = result.startLine;
@@ -482,6 +498,46 @@ export class InspectorStore {
       this.sourceReadStatus = 'unreadable';
       this.sourceStatus = 'error';
       this.sourceError = discoveryErrorMessage(error);
+    }
+  }
+
+  private async refreshRelatedSources() {
+    const project = this.selectedProject;
+    const flow = this.selectedFlow;
+    const request = ++this.relatedSourceRequest;
+    this.relatedSourceRefs = [];
+    if (!project || !flow || flow.sourceRefs.length === 0) return;
+
+    const evidencePaths = new Set(flow.sourceRefs.map((source) => source.path));
+    let relatedPaths: string[];
+    if (!isTauriRuntime()) {
+      relatedPaths = Object.keys(flow.files ?? {}).filter((path) => !evidencePaths.has(path));
+    } else {
+      try {
+        relatedPaths = await listCodegraphRelatedFiles(project.id, [...evidencePaths]);
+      } catch {
+        relatedPaths = [];
+      }
+    }
+    if (request !== this.relatedSourceRequest) return;
+
+    this.relatedSourceRefs = relatedPaths.map((path) => ({
+      id: `codegraph:${path}`,
+      path,
+      startLine: 1,
+      endLine: 1,
+      symbol: '',
+      label: 'Related by CodeGraph',
+      status: 'current',
+      contentHash: '',
+      origin: 'codegraph',
+    }));
+
+    if (
+      this.selectedSourceRefId.startsWith('codegraph:') &&
+      this.relatedSourceRefs.some((source) => source.id === this.selectedSourceRefId)
+    ) {
+      void this.loadSelectedSource();
     }
   }
 
@@ -502,13 +558,20 @@ export class InspectorStore {
     const flow = selectedModule?.flows.find((item) => item.id === this.pendingSelection.flowId);
     this.selectedFlowId = flow?.id ?? selectedModule?.flows[0]?.id ?? '';
     const selectedFlow = selectedModule?.flows.find((item) => item.id === this.selectedFlowId);
+    const requestedSourceRefId = this.pendingSelection.sourceRefId;
     const source = selectedFlow?.sourceRefs.find(
       (item) => item.id === this.pendingSelection.sourceRefId,
     );
-    this.selectedSourceRefId = source?.id ?? selectedFlow?.sourceRefs[0]?.id ?? '';
+    this.selectedSourceRefId =
+      source?.id ??
+      (requestedSourceRefId?.startsWith('codegraph:') ? requestedSourceRefId : undefined) ??
+      selectedFlow?.sourceRefs[0]?.id ??
+      '';
+    this.relatedSourceRefs = [];
     this.pendingSelection = {};
     this.persistViewState();
     void this.loadSelectedSource();
+    void this.refreshRelatedSources();
   }
 
   private persistViewState() {
@@ -538,4 +601,10 @@ function formatRelativeActivity(value: string): string {
   if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
   if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
   return `${Math.floor(elapsed / 86_400_000)}d ago`;
+}
+
+function previewSourceFile(code: string, startLine: number, endLine: number): string {
+  const paddedStart = startLine > 1 ? `${'\n'.repeat(startLine - 1)}${code}` : code;
+  const missingLines = Math.max(0, endLine - paddedStart.split('\n').length);
+  return missingLines > 0 ? `${paddedStart}${'\n'.repeat(missingLines)}` : paddedStart;
 }

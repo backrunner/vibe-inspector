@@ -20,11 +20,14 @@
 <style>
   .registered-workspace {
     display: grid;
+    box-sizing: border-box;
     min-width: 0;
     min-height: 0;
     flex: 1;
     grid-template-columns: 216px 280px minmax(0, 1fr);
+    gap: 8px;
     overflow: hidden;
+    padding: 0 8px 8px;
     transition: grid-template-columns var(--dur-rail) var(--ease-in-out);
   }
 

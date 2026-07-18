@@ -12,12 +12,12 @@
 
 <aside
   class:collapsed={store.moduleRailCollapsed}
-  class="module-rail flex min-w-0 flex-col border-r"
+  class="module-rail flex min-w-0 flex-col"
   aria-label="Modules"
 >
   {#if store.moduleRailCollapsed}
     <div class="rail-mode rail-mode-collapsed">
-      <div class="grid h-11 shrink-0 place-items-center border-b text-muted-foreground">
+      <div class="rail-header grid h-11 shrink-0 place-items-center text-muted-foreground">
         <IconButton
           label="Expand module rail"
           icon={PanelLeftOpen}
@@ -32,7 +32,7 @@
     </div>
   {:else}
     <div class="rail-mode rail-mode-expanded">
-      <header class="flex h-11 shrink-0 items-center justify-between border-b px-4 pr-2">
+      <header class="rail-header flex h-11 shrink-0 items-center justify-between px-4 pr-2">
         <div class="grid min-w-0 gap-0.5">
           <strong class="text-[14px] font-semibold">Architecture</strong><span
             class="truncate text-[11.5px] text-muted-foreground"
@@ -73,9 +73,30 @@
 
 <style>
   .module-rail {
+    position: relative;
+    z-index: 1;
     width: 100%;
     overflow: hidden;
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-xl);
     background: var(--module-rail-surface);
+    box-shadow: var(--panel-shadow);
+  }
+
+  .rail-header {
+    position: relative;
+    background: var(--rail-header-surface);
+    box-shadow: var(--rail-header-shadow);
+  }
+
+  .rail-header::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .rail-mode {

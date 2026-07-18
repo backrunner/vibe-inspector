@@ -70,18 +70,22 @@ export async function loadInspectorSnapshot(projectId: string): Promise<Inspecto
   return invoke<InspectorSnapshotDto>('load_inspector_snapshot', { input: { projectId } });
 }
 
-export async function readSourceReference(
-  projectId: string,
-  source: SourceRef,
-): Promise<SourceRange> {
-  return invoke<SourceRange>('read_project_source', {
+export async function readSourceFile(projectId: string, source: SourceRef): Promise<SourceRange> {
+  return invoke<SourceRange>('read_project_file', {
     input: {
       projectId,
       relativePath: source.path,
-      startLine: source.startLine,
-      endLine: source.endLine,
       expectedHash: source.contentHash || null,
     },
+  });
+}
+
+export async function listCodegraphRelatedFiles(
+  projectId: string,
+  relativePaths: string[],
+): Promise<string[]> {
+  return invoke<string[]>('list_codegraph_related_files', {
+    input: { projectId, relativePaths },
   });
 }
 

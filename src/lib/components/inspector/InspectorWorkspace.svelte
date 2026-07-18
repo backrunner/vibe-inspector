@@ -157,13 +157,16 @@
           </div>
           <span class="source-count"
             >{flow.sourceRefs.length}
-            {flow.sourceRefs.length === 1 ? 'reference' : 'references'}</span
+            {flow.sourceRefs.length === 1 ? 'reference' : 'references'}{store.relatedSourceRefs
+              .length
+              ? ` · ${store.relatedSourceRefs.length} related`
+              : ''}</span
           >
         </header>
 
         <div class="source-grid">
           <SourceFileTree
-            sourceRefs={flow.sourceRefs}
+            sourceRefs={store.visibleSourceRefs}
             selectedRefId={store.selectedSourceRefId}
             onselect={(refId) => store.selectSourceRef(refId)}
           />
@@ -225,7 +228,10 @@
 
 <style>
   .inspector-workspace {
-    background: transparent;
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-xl);
+    background: var(--workspace-panel-surface);
+    box-shadow: var(--panel-shadow);
   }
 
   .workspace-content {
@@ -361,20 +367,31 @@
     min-height: 0;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid var(--panel-border);
     border-radius: var(--radius-lg);
     background: var(--card);
     box-shadow: var(--panel-shadow);
   }
 
   .rationale > header {
+    position: relative;
     display: flex;
     min-height: 46px;
     flex: 0 0 46px;
     align-items: center;
     gap: 9px;
     padding: 0 12px;
-    border-bottom: 1px solid var(--border);
+    background: var(--panel-header-surface);
+    box-shadow: 0 12px 22px -24px color-mix(in oklab, var(--foreground) 22%, transparent);
+  }
+
+  .rationale > header::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .rationale-icon {
@@ -464,7 +481,7 @@
     gap: 8px 14px;
     margin: 18px 0 0;
     padding-top: 14px;
-    border-top: 1px solid var(--border);
+    box-shadow: 0 -12px 22px -24px color-mix(in oklab, var(--foreground) 22%, transparent);
   }
 
   .provenance > div {
@@ -539,14 +556,15 @@
     min-height: 0;
     grid-template-columns: 220px minmax(0, 1fr);
     overflow: hidden;
-    border: 1px solid var(--panel-border);
     border-radius: var(--radius-lg);
     background: var(--card);
     box-shadow: var(--panel-shadow);
   }
 
   .source-state {
-    min-height: 220px;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
     gap: 8px;
     border: 0;
     border-radius: 0;
@@ -554,7 +572,7 @@
     background: var(--card);
     box-shadow: none;
     font-size: 12px;
-    padding-top: calc(var(--state-padding) + 35px);
+    padding: 0;
   }
 
   .source-state :global(svg) {

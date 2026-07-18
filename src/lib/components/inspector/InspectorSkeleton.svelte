@@ -64,12 +64,17 @@
 <style>
   .workspace-skeleton {
     display: grid;
+    box-sizing: border-box;
     min-height: 0;
     flex: 1;
     grid-template-rows: auto minmax(190px, 0.9fr) minmax(262px, 1.15fr);
     gap: 12px;
     overflow: hidden;
     padding: 16px 20px;
+    border: 1px solid var(--panel-edge);
+    border-radius: var(--radius-xl);
+    background: var(--workspace-panel-surface);
+    box-shadow: var(--panel-shadow);
   }
 
   .workspace-skeleton > header {
@@ -95,7 +100,6 @@
   .rationale-placeholder,
   .source-surface-placeholder {
     overflow: hidden;
-    border: 1px solid var(--panel-border);
     border-radius: var(--radius-lg);
     background: var(--card);
     box-shadow: var(--panel-shadow);
@@ -112,7 +116,8 @@
     align-items: center;
     justify-content: space-between;
     padding: 0 12px;
-    border-bottom: 1px solid var(--border);
+    background: var(--panel-header-surface);
+    box-shadow: 0 12px 22px -24px color-mix(in oklab, var(--foreground) 22%, transparent);
   }
 
   .diagram-nodes {
@@ -160,7 +165,8 @@
     align-content: start;
     gap: 8px;
     padding: 0 8px 8px;
-    border-right: 1px solid var(--border);
+    box-shadow: var(--pane-separation-shadow);
+    z-index: 1;
   }
 
   .tree-placeholder > :global(:first-child) {

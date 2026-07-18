@@ -53,13 +53,37 @@
     color-mix(in oklab, var(--workspace) 97%, var(--signal) 3%) 54%,
     var(--workspace) 100%
   );
-  --project-rail-surface: transparent;
-  --module-rail-surface: transparent;
+  --project-rail-surface: color-mix(in oklab, var(--workspace) 76%, transparent);
+  --module-rail-surface: color-mix(in oklab, var(--workspace) 82%, transparent);
   --titlebar-surface: linear-gradient(
     180deg,
     color-mix(in oklab, var(--titlebar) 96%, white 4%),
     var(--titlebar)
   );
+  --glass-tint: color-mix(in oklab, white 26%, transparent);
+  --glass-rim: rgb(255 255 255 / 72%);
+  --glass-leading-light: rgb(255 255 255 / 48%);
+  --glass-trailing-light: rgb(63 63 70 / 8%);
+  --glass-interaction-light: rgb(255 255 255 / 58%);
+  --glass-shadow:
+    0 1px 2px rgb(24 24 27 / 10%), 0 7px 18px rgb(24 24 27 / 7%), inset 0 -1px 0 rgb(24 24 27 / 6%);
+  --glass-shadow-active: 0 2px 7px rgb(24 24 27 / 10%), inset 0 1px 2px rgb(24 24 27 / 8%);
+  --rail-header-surface: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in oklab, var(--workspace) 52%, transparent)
+  );
+  --rail-header-shadow: 0 12px 22px -26px rgb(24 24 27 / 24%);
+  --panel-header-surface: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 96%, white 4%),
+    color-mix(in oklab, var(--muted) 32%, var(--card))
+  );
+  --panel-footer-surface: color-mix(in oklab, var(--muted) 28%, var(--card));
+  --pane-separation-shadow: 12px 0 24px -22px rgb(24 24 27 / 24%);
+  --workspace-panel-surface: color-mix(in oklab, var(--workspace) 64%, transparent);
+  --panel-edge: color-mix(in oklab, var(--border) 78%, transparent);
+  --panel-divider: color-mix(in oklab, var(--border) 70%, transparent);
   --panel-border: color-mix(in oklab, var(--border) 86%, var(--foreground) 14%);
   --diagram-surface: #fbfbfc;
   --diagram-node: #f4f4f5;
@@ -76,8 +100,8 @@
   --editor-selection: #b8d7ff99;
   --editor-selection-inactive: #d7e7fa99;
   --editor-reference: #65a1ff;
-  --editor-font-size: 13px;
-  --editor-line-height: 20px;
+  --editor-font-size: 12px;
+  --editor-line-height: 18px;
   --control-shadow:
     inset 0 1px 0 rgb(255 255 255 / 68%), 0 1px 2px rgb(24 24 27 / 9%),
     0 4px 10px rgb(24 24 27 / 4%);
@@ -153,13 +177,37 @@
     color-mix(in oklab, var(--workspace) 97%, var(--signal) 3%) 55%,
     var(--workspace) 100%
   );
-  --project-rail-surface: transparent;
-  --module-rail-surface: transparent;
+  --project-rail-surface: color-mix(in oklab, var(--workspace) 82%, transparent);
+  --module-rail-surface: color-mix(in oklab, var(--workspace) 88%, transparent);
   --titlebar-surface: linear-gradient(
     180deg,
     color-mix(in oklab, var(--titlebar) 95%, white 5%),
     var(--titlebar)
   );
+  --glass-tint: color-mix(in oklab, var(--titlebar) 44%, transparent);
+  --glass-rim: rgb(255 255 255 / 16%);
+  --glass-leading-light: rgb(255 255 255 / 18%);
+  --glass-trailing-light: rgb(0 0 0 / 18%);
+  --glass-interaction-light: rgb(255 255 255 / 24%);
+  --glass-shadow:
+    0 1px 2px rgb(0 0 0 / 38%), 0 9px 24px rgb(0 0 0 / 26%), inset 0 -1px 0 rgb(0 0 0 / 24%);
+  --glass-shadow-active: 0 2px 8px rgb(0 0 0 / 30%), inset 0 1px 3px rgb(0 0 0 / 32%);
+  --rail-header-surface: linear-gradient(
+    180deg,
+    transparent,
+    color-mix(in oklab, var(--workspace) 58%, transparent)
+  );
+  --rail-header-shadow: 0 12px 24px -26px rgb(0 0 0 / 60%);
+  --panel-header-surface: linear-gradient(
+    180deg,
+    color-mix(in oklab, var(--card) 94%, white 6%),
+    color-mix(in oklab, var(--muted) 34%, var(--card))
+  );
+  --panel-footer-surface: color-mix(in oklab, var(--muted) 32%, var(--card));
+  --pane-separation-shadow: 14px 0 26px -22px rgb(0 0 0 / 62%);
+  --workspace-panel-surface: color-mix(in oklab, var(--workspace) 74%, transparent);
+  --panel-edge: color-mix(in oklab, var(--border) 74%, transparent);
+  --panel-divider: color-mix(in oklab, var(--border) 68%, transparent);
   --panel-border: color-mix(in oklab, var(--border) 78%, white 22%);
   --diagram-surface: #26262b;
   --diagram-node: #35353c;

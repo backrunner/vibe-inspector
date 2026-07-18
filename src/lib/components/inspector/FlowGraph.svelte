@@ -70,18 +70,29 @@
     min-height: 0;
     grid-template-rows: 42px minmax(0, 1fr);
     overflow: hidden;
-    border: 1px solid var(--panel-border);
     border-radius: var(--radius-lg);
     background: var(--card);
     box-shadow: var(--panel-shadow);
   }
 
   header {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0 8px 0 13px;
-    border-bottom: 1px solid var(--border);
+    background: var(--panel-header-surface);
+    box-shadow: 0 12px 22px -24px color-mix(in oklab, var(--foreground) 22%, transparent);
+  }
+
+  header::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .graph-title {

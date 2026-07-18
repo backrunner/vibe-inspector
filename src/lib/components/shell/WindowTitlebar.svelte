@@ -1,6 +1,7 @@
 <script lang="ts">
   import { History, Moon, Settings2, Sun } from '@lucide/svelte';
   import IconButton from '$components/IconButton.svelte';
+  import LiquidGlassToolbar from './LiquidGlassToolbar.svelte';
   import { inspectorStore } from '$stores/inspector.svelte';
 
   const store = inspectorStore;
@@ -9,15 +10,21 @@
 <header class="window-titlebar" data-tauri-drag-region>
   <strong data-tauri-drag-region>VibeInspector</strong>
   <div class="titlebar-actions">
-    {#if store.selectedProject}
-      <IconButton label="Open activity" icon={History} onclick={() => void store.openActivity()} />
-    {/if}
-    <IconButton label="Open settings" icon={Settings2} onclick={() => store.openSettings()} />
-    <IconButton
-      label={store.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-      icon={store.theme === 'dark' ? Sun : Moon}
-      onclick={() => store.toggleTheme()}
-    />
+    <LiquidGlassToolbar>
+      {#if store.selectedProject}
+        <IconButton
+          label="Open activity"
+          icon={History}
+          onclick={() => void store.openActivity()}
+        />
+      {/if}
+      <IconButton label="Open settings" icon={Settings2} onclick={() => store.openSettings()} />
+      <IconButton
+        label={store.theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+        icon={store.theme === 'dark' ? Sun : Moon}
+        onclick={() => store.toggleTheme()}
+      />
+    </LiquidGlassToolbar>
   </div>
 </header>
 
@@ -43,10 +50,9 @@
 
   .titlebar-actions {
     position: absolute;
-    top: 5px;
-    right: 8px;
+    top: 3px;
+    right: 7px;
     display: flex;
-    gap: 2px;
     -webkit-app-region: no-drag;
   }
 </style>

@@ -171,6 +171,7 @@
   function rangeLabel(refs: SourceRef[]): string {
     if (refs.length > 1) return `${refs.length} ranges`;
     const ref = refs[0];
+    if (ref?.origin === 'codegraph') return 'related';
     return ref ? `L${ref.startLine}-${ref.endLine}` : '';
   }
 
@@ -243,6 +244,7 @@
               class:context={item.node.refs.length > 1 && item.node.id === selectedFileId}
               class:selected={item.node.refs.length === 1 && item.node.id === selectedFileId}
               class:stale={item.node.refs.some((ref) => ref.status !== 'current')}
+              class:related={item.node.refs.every((ref) => ref.origin === 'codegraph')}
               class="tree-row file-row"
               style:--tree-depth={item.depth}
               role="treeitem"
@@ -277,19 +279,32 @@
     min-width: 0;
     min-height: 0;
     flex-direction: column;
-    border-right: 1px solid var(--panel-border);
     background: color-mix(in oklab, var(--panel) 94%, var(--workspace) 6%);
+    box-shadow: var(--pane-separation-shadow);
+    z-index: 1;
   }
 
   .source-tree > header {
+    position: relative;
     display: flex;
-    height: 35px;
-    flex: 0 0 35px;
+    height: 44px;
+    flex: 0 0 44px;
     align-items: center;
     justify-content: space-between;
     padding: 0 11px 0 13px;
-    border-bottom: 1px solid var(--border);
+    background: var(--panel-header-surface);
+    box-shadow: 0 10px 20px -23px color-mix(in oklab, var(--foreground) 24%, transparent);
     font-size: 11.5px;
+  }
+
+  .source-tree > header::after {
+    position: absolute;
+    right: 12px;
+    bottom: 0;
+    left: 12px;
+    height: 1px;
+    background: var(--panel-divider);
+    content: '';
   }
 
   .source-tree > header strong {
@@ -311,6 +326,7 @@
   }
 
   .source-tree-empty {
+    width: 100%;
     min-height: 100%;
     gap: 8px;
     color: var(--muted-foreground);
@@ -330,6 +346,7 @@
 
   .tree {
     display: grid;
+    width: max-content;
     align-content: start;
     gap: 2px;
     min-width: 100%;
@@ -338,8 +355,8 @@
 
   .tree-row {
     display: flex;
-    width: 100%;
-    min-width: 0;
+    width: max-content;
+    min-width: 100%;
     height: 30px;
     align-items: center;
     gap: 6px;
@@ -360,6 +377,16 @@
   .tree-row:hover {
     color: var(--foreground);
     background: color-mix(in oklab, var(--muted) 64%, transparent);
+  }
+
+  .tree-row:active {
+    background: color-mix(in oklab, var(--muted) 78%, transparent);
+    box-shadow: var(--inset-shadow);
+  }
+
+  .tree-row:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
   }
 
   .tree-row:focus-visible {
@@ -384,6 +411,10 @@
     color: var(--status-warning);
   }
 
+  .tree-row.related small {
+    color: color-mix(in oklab, var(--muted-foreground) 82%, var(--signal) 18%);
+  }
+
   :global(.source-tree .disclosure),
   :global(.source-tree .tree-icon) {
     width: 14px;
@@ -406,9 +437,6 @@
 
   .folder-row span,
   .file-name {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
@@ -417,7 +445,7 @@
   }
 
   .file-name {
-    flex: 1;
+    flex: 0 0 auto;
     color: inherit;
     font-family: var(--app-font-mono);
     font-size: 10.8px;
@@ -454,12 +482,10 @@
   }
 
   .range-row small {
-    min-width: 0;
-    overflow: hidden;
+    flex: 0 0 auto;
     color: var(--muted-foreground);
     font-family: var(--app-font-mono);
     font-size: 10px;
-    text-overflow: ellipsis;
     white-space: nowrap;
   }
 </style>
