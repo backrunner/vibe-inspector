@@ -50,6 +50,7 @@
     border-radius: var(--radius-md);
     color: var(--status-error);
     background: color-mix(in oklab, var(--status-error) 7%, var(--muted));
+    box-shadow: var(--control-shadow);
   }
 
   .state-icon :global(svg) {
@@ -81,6 +82,7 @@
     border-radius: var(--radius-md);
     color: var(--status-error);
     background: color-mix(in oklab, var(--muted) 62%, transparent);
+    box-shadow: var(--inset-shadow);
     font-family: var(--app-font-mono);
     font-size: 10.5px;
     line-height: 1.5;

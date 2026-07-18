@@ -72,6 +72,7 @@
     border-radius: var(--radius-md);
     color: var(--muted-foreground);
     background: color-mix(in oklab, var(--muted) 72%, transparent);
+    box-shadow: var(--control-shadow);
   }
 
   .section-icon :global(svg) {

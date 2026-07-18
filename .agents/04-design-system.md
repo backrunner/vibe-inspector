@@ -13,8 +13,8 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 - Green, amber, and red appear only for semantic status.
 - Use one restrained Zinc gradient across the full application frame. Project and module rails stay transparent over that shared plane; crisp separators, selected rows, and framed tools provide hierarchy without turning each rail into a colour block.
 - Crisp borders and spacing define structure. Rounded containers must retain a precise 1px edge so the application feels engineered rather than soft or inflated.
-- Independent tool surfaces use one shared low-contrast shadow token plus a subtle inner highlight. Shadows communicate hierarchy and must not appear on every row.
-- Use an 8-12px radius scale for framed tools and 6-8px for compact controls. Pill shapes remain reserved for status indicators.
+- Use a four-level depth scale: compact controls, repeated raised items, independent tool panels, and dialogs. Every shadow includes a restrained inner highlight and a Zinc-tinted outer shadow; elevation must still communicate real hierarchy rather than decorate every row.
+- Keep a consistent soft-corner system: 12px for framed tools, 10-15px for repeated raised items and dialogs, and 6-10px for compact controls. Interior panes may stay square when they are clipped by a rounded parent. Pill shapes remain reserved for status indicators.
 - A low-contrast Zinc-on-Zinc gradient spans the entire window to prevent a flat single-plane background. It may carry only a trace of signal blue, must remain subordinate to content, and must work in both themes.
 - No colorful gradient blobs, glass, glow, decorative background shapes, nested cards, oversized headings, or marketing composition.
 
@@ -61,6 +61,11 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 --module-rail-surface;
 --titlebar-surface;
 --panel-border;
+--control-shadow;
+--control-shadow-active;
+--inset-shadow;
+--item-shadow;
+--selected-shadow;
 --panel-shadow;
 --dialog-shadow;
 ```

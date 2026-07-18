@@ -74,7 +74,7 @@
     border-radius: var(--radius-compact);
     color: var(--muted-foreground);
     background: color-mix(in oklab, var(--muted) 66%, var(--card));
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 5%, transparent);
+    box-shadow: var(--control-shadow);
     font-family: var(--app-font-sans);
     font-size: 11px;
     line-height: 1;

@@ -371,7 +371,7 @@
     border-color: color-mix(in oklab, var(--signal) 30%, var(--border));
     color: var(--foreground);
     background: color-mix(in oklab, var(--signal) 9%, var(--panel));
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 5%, transparent);
+    box-shadow: var(--selected-shadow);
   }
 
   .tree-row.context {

@@ -130,11 +130,12 @@
   .project-row.active {
     border-color: var(--sidebar-border);
     background: var(--sidebar-accent);
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent);
+    box-shadow: var(--selected-shadow);
   }
   .project-avatar.active {
     border-color: var(--ring);
     background: var(--sidebar-accent);
+    box-shadow: var(--selected-shadow);
   }
   .project-avatar,
   .project-row {
@@ -144,7 +145,7 @@
   .project-mark {
     color: color-mix(in oklab, var(--foreground) 78%, transparent);
     background: color-mix(in oklab, var(--muted) 84%, var(--sidebar));
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 5%, transparent);
+    box-shadow: var(--control-shadow);
   }
   .project-avatar:hover {
     background: color-mix(in oklab, var(--sidebar-accent) 90%, var(--foreground) 10%);

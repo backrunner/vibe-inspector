@@ -257,6 +257,7 @@
     border-radius: var(--radius-md);
     color: var(--muted-foreground);
     background: var(--muted);
+    box-shadow: var(--control-shadow);
   }
 
   .empty-inspector > span :global(svg) {
@@ -385,6 +386,7 @@
     border-radius: var(--radius-md);
     color: var(--muted-foreground);
     background: var(--muted);
+    box-shadow: var(--control-shadow);
   }
 
   .rationale > header > div {
@@ -602,6 +604,7 @@
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       background: color-mix(in oklab, var(--muted) 58%, transparent);
+      box-shadow: var(--inset-shadow);
     }
 
     :global(.overview-option) {

@@ -324,6 +324,7 @@
     border-color: color-mix(in oklab, var(--signal) 30%, var(--border));
     color: var(--foreground);
     background: color-mix(in oklab, var(--signal) 8%, transparent);
+    box-shadow: var(--selected-shadow);
   }
 
   .flow-row:focus-visible,

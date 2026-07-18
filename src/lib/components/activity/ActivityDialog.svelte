@@ -150,6 +150,7 @@
     padding: 0 18px;
     color: var(--muted-foreground);
     background: color-mix(in oklab, var(--muted) 45%, transparent);
+    box-shadow: var(--inset-shadow);
   }
 
   .activity-section > header :global(svg) {

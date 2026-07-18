@@ -345,7 +345,7 @@
     border-radius: var(--radius-xl);
     color: var(--foreground);
     background: color-mix(in oklab, var(--card) 58%, transparent);
-    box-shadow: inset 0 1px 0 color-mix(in oklab, var(--foreground) 4%, transparent);
+    box-shadow: var(--item-shadow);
     text-align: left;
     transition: background-color var(--dur-micro) var(--ease-out);
   }
@@ -511,7 +511,8 @@
 
   .candidate-list {
     display: grid;
-    padding: 4px 0;
+    gap: 8px;
+    padding: 8px 4px;
   }
 
   .candidate-list label {
@@ -521,21 +522,35 @@
     align-items: center;
     gap: 10px;
     min-height: 58px;
-    padding: 8px 4px;
-    border-bottom: 1px solid var(--border);
+    padding: 8px 12px;
+    border: 1px solid color-mix(in oklab, var(--panel-border) 76%, transparent);
+    border-radius: var(--radius-xl);
+    color: var(--foreground);
+    background: color-mix(in oklab, var(--card) 58%, transparent);
+    box-shadow: var(--item-shadow);
     cursor: pointer;
+    transition: background-color var(--dur-micro) var(--ease-out);
   }
 
   .candidate-list label:hover {
-    background: color-mix(in oklab, var(--muted) 48%, transparent);
+    background: color-mix(in oklab, var(--card) 86%, transparent);
+  }
+
+  .candidate-list label:active {
+    background: color-mix(in oklab, var(--card) 96%, transparent);
   }
 
   .candidate-list label.selected {
-    background: color-mix(in oklab, var(--signal) 5%, transparent);
+    border-color: color-mix(in oklab, var(--signal) 34%, var(--panel-border));
+    background: color-mix(in oklab, var(--signal) 7%, var(--card));
+    box-shadow: var(--selected-shadow);
   }
 
-  .candidate-list label:last-child {
-    border-bottom: 0;
+  .candidate-list label:focus-within {
+    border-color: var(--ring);
+    box-shadow:
+      var(--item-shadow),
+      0 0 0 2px color-mix(in oklab, var(--ring) 22%, transparent);
   }
 
   .candidate-copy {

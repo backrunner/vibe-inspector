@@ -203,7 +203,7 @@
     border: 1px solid color-mix(in oklab, var(--panel-border) 88%, transparent);
     border-radius: var(--radius-lg);
     background: color-mix(in oklab, var(--muted) 84%, transparent);
-    box-shadow: inset 0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
+    box-shadow: var(--inset-shadow);
   }
 
   :global(.theme-option) {
@@ -228,9 +228,7 @@
     border-color: color-mix(in oklab, var(--signal) 32%, var(--panel-border));
     color: var(--foreground);
     background: var(--background);
-    box-shadow:
-      inset 0 1px 0 color-mix(in oklab, var(--foreground) 6%, transparent),
-      0 1px 3px color-mix(in oklab, var(--foreground) 12%, transparent);
+    box-shadow: var(--selected-shadow);
   }
 
   .service-section > header {
@@ -253,6 +251,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     background: color-mix(in oklab, var(--muted) 38%, transparent);
+    box-shadow: var(--item-shadow);
   }
 
   .service-row > div {
