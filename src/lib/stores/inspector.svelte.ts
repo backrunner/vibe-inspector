@@ -45,6 +45,7 @@ export class InspectorStore {
   workspaceHydrated = $state(false);
   workspaceError = $state('');
   theme = $state<'dark' | 'light'>('dark');
+  projectSearchQuery = $state('');
   searchQuery = $state('');
   inspectorStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
   inspectorError = $state('');

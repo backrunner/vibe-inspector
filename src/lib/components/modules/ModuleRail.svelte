@@ -1,9 +1,8 @@
 <script lang="ts">
-  import { Boxes, PanelLeftClose, PanelLeftOpen, Search } from '@lucide/svelte';
-  import { Input } from '$lib/components/ui/input';
+  import { Boxes, PanelLeftClose, PanelLeftOpen } from '@lucide/svelte';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
+  import GlassSearchField from '$components/GlassSearchField.svelte';
   import IconButton from '$components/IconButton.svelte';
-  import LiquidGlassSurface from '$components/LiquidGlassSurface.svelte';
   import ModuleTree from './ModuleTree.svelte';
   import { inspectorStore } from '$stores/inspector.svelte';
 
@@ -45,15 +44,7 @@
       </header>
 
       <div class="module-search mx-3 mt-3 mb-2">
-        <LiquidGlassSurface variant="field" class="module-search-glass">
-          <Search class="search-icon" strokeWidth={1.8} aria-hidden="true" />
-          <Input
-            bind:value={store.searchQuery}
-            placeholder="Filter architecture"
-            aria-label="Filter architecture"
-            class="h-8 border-0 bg-transparent pr-3 pl-8 text-[13px] [box-shadow:none] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
-          />
-        </LiquidGlassSurface>
+        <GlassSearchField bind:value={store.searchQuery} placeholder="Filter architecture" />
       </div>
 
       <div
@@ -128,26 +119,6 @@
   .architecture-title span {
     color: var(--muted-foreground);
     font-size: 11.5px;
-  }
-
-  .module-search {
-    position: relative;
-  }
-
-  :global(.module-search-glass .search-icon) {
-    position: absolute;
-    top: 50%;
-    left: 10px;
-    z-index: 2;
-    width: 14px;
-    height: 14px;
-    color: var(--muted-foreground);
-    pointer-events: none;
-    transform: translateY(-50%);
-  }
-
-  :global(.module-search-glass:has(input:focus-visible) .search-icon) {
-    color: var(--foreground);
   }
 
   .rail-mode {

@@ -68,8 +68,8 @@ Acceptance: MCP health does not depend on a visible window; one tray instance an
 
 ## 5. Information architecture
 
-- Project rail: projects, recent activity, collapse toggle. Inspector lifecycle states remain in
-  MCP/storage data and are not rendered as routine status indicators.
+- Project rail: filterable projects, recent activity, collapse toggle. Inspector lifecycle states
+  remain in MCP/storage data and are not rendered as routine status indicators.
 - Module rail: repository modules in a tree/stub list and flow counts. Initialization remains Agent-owned and is not exposed as a desktop UI action.
 - Inspector workspace: flow header, upper diagram/rationale band, lower source references/read-only code band.
 - Secondary surfaces: command activity, provenance, settings, MCP health, keyboard shortcut help.
