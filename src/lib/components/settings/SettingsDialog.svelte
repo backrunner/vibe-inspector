@@ -12,6 +12,7 @@
   import { Badge } from '$lib/components/ui/badge';
   import { Button } from '$lib/components/ui/button';
   import { Checkbox } from '$lib/components/ui/checkbox';
+  import * as SegmentedControl from '$lib/components/ui/segmented-control';
   import { Skeleton } from '$lib/components/ui/skeleton';
   import { formatRuntimeTime } from '$lib/adapters/runtime';
   import { isTauriRuntime } from '$lib/adapters/tauri';
@@ -39,22 +40,20 @@
           <strong>Appearance</strong>
           <span>Use a Zinc theme throughout the desktop workspace.</span>
         </div>
-        <div class="segmented-control" aria-label="Application theme">
-          <Button
-            size="sm"
-            variant="ghost"
-            class={`theme-option${store.theme === 'light' ? ' selected' : ''}`}
-            aria-pressed={store.theme === 'light'}
-            onclick={() => store.setTheme('light')}><Sun data-icon="inline-start" />Light</Button
+        <SegmentedControl.Root aria-label="Application theme">
+          <SegmentedControl.Item
+            class="w-[88px]"
+            selected={store.theme === 'light'}
+            onclick={() => store.setTheme('light')}
+            ><Sun data-icon="inline-start" />Light</SegmentedControl.Item
           >
-          <Button
-            size="sm"
-            variant="ghost"
-            class={`theme-option${store.theme === 'dark' ? ' selected' : ''}`}
-            aria-pressed={store.theme === 'dark'}
-            onclick={() => store.setTheme('dark')}><Moon data-icon="inline-start" />Dark</Button
+          <SegmentedControl.Item
+            class="w-[88px]"
+            selected={store.theme === 'dark'}
+            onclick={() => store.setTheme('dark')}
+            ><Moon data-icon="inline-start" />Dark</SegmentedControl.Item
           >
-        </div>
+        </SegmentedControl.Root>
       </section>
 
       <section class="service-section">
@@ -193,42 +192,6 @@
     color: var(--muted-foreground);
     font-size: 11.5px;
     line-height: 1.45;
-  }
-
-  .segmented-control {
-    display: flex;
-    flex: 0 0 auto;
-    gap: 3px;
-    padding: 3px;
-    border: 1px solid color-mix(in oklab, var(--panel-border) 88%, transparent);
-    border-radius: var(--radius-lg);
-    background: color-mix(in oklab, var(--muted) 84%, transparent);
-    box-shadow: var(--inset-shadow);
-  }
-
-  :global(.theme-option) {
-    width: 88px;
-    border: 1px solid transparent;
-    border-radius: calc(var(--radius-lg) - 3px);
-    color: var(--muted-foreground);
-    background: transparent;
-    box-shadow: none;
-    transition:
-      color var(--dur-micro) var(--ease-out),
-      border-color var(--dur-micro) var(--ease-out),
-      background-color var(--dur-micro) var(--ease-out);
-  }
-
-  :global(.theme-option:hover:not(.selected)) {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--background) 34%, transparent);
-  }
-
-  :global(.theme-option.selected) {
-    border-color: color-mix(in oklab, var(--signal) 32%, var(--panel-border));
-    color: var(--foreground);
-    background: var(--background);
-    box-shadow: var(--selected-shadow);
   }
 
   .service-section > header {

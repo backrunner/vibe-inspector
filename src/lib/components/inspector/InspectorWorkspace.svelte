@@ -9,6 +9,7 @@
   } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
+  import * as SegmentedControl from '$lib/components/ui/segmented-control';
   import CodeViewer from '$components/code/CodeViewer.svelte';
   import SourceFileTree from '$components/code/SourceFileTree.svelte';
   import SourceViewerSkeleton from '$components/code/SourceViewerSkeleton.svelte';
@@ -62,22 +63,18 @@
       </section>
 
       <section class="overview-section" data-panel={overviewPanel} aria-label="Flow overview">
-        <div class="overview-toggle" role="group" aria-label="Flow overview panel">
-          <Button
-            size="xs"
-            variant={overviewPanel === 'flow' ? 'secondary' : 'ghost'}
-            class="overview-option"
-            aria-pressed={overviewPanel === 'flow'}
-            onclick={() => (overviewPanel = 'flow')}>Flow</Button
+        <SegmentedControl.Root class="overview-toggle" aria-label="Flow overview panel">
+          <SegmentedControl.Item
+            class="min-w-[72px]"
+            selected={overviewPanel === 'flow'}
+            onclick={() => (overviewPanel = 'flow')}>Flow</SegmentedControl.Item
           >
-          <Button
-            size="xs"
-            variant={overviewPanel === 'rationale' ? 'secondary' : 'ghost'}
-            class="overview-option"
-            aria-pressed={overviewPanel === 'rationale'}
-            onclick={() => (overviewPanel = 'rationale')}>Rationale</Button
+          <SegmentedControl.Item
+            class="min-w-[72px]"
+            selected={overviewPanel === 'rationale'}
+            onclick={() => (overviewPanel = 'rationale')}>Rationale</SegmentedControl.Item
           >
-        </div>
+        </SegmentedControl.Root>
 
         <div class="flow-panel">
           <FlowGraph {flow} theme={store.theme} />
@@ -346,7 +343,7 @@
     gap: 12px;
   }
 
-  .overview-toggle {
+  :global([data-slot='segmented-control'].overview-toggle) {
     display: none;
   }
 
@@ -611,20 +608,8 @@
       gap: 8px;
     }
 
-    .overview-toggle {
+    :global([data-slot='segmented-control'].overview-toggle) {
       display: inline-flex;
-      width: max-content;
-      align-items: center;
-      gap: 2px;
-      padding: 2px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      background: color-mix(in oklab, var(--muted) 58%, transparent);
-      box-shadow: var(--inset-shadow);
-    }
-
-    :global(.overview-option) {
-      min-width: 72px;
     }
 
     .flow-panel,

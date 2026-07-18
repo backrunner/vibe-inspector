@@ -67,10 +67,6 @@
               aria-current={project.id === store.selectedProjectId ? 'page' : undefined}
               onclick={() => store.selectProject(project.id)}
             >
-              <span
-                class="project-mark grid size-7 shrink-0 place-items-center rounded-md font-mono text-[9px] font-semibold"
-                >{project.name.slice(0, 2).toUpperCase()}</span
-              >
               <span class="grid min-w-0 flex-1 gap-0.5"
                 ><strong class="truncate text-[13px] font-medium">{project.name}</strong><small
                   class="truncate font-mono text-[10.5px] text-muted-foreground"
@@ -160,8 +156,7 @@
   .project-row {
     --app-focus-ring-offset: -3px;
   }
-  .project-avatar,
-  .project-mark {
+  .project-avatar {
     color: color-mix(in oklab, var(--foreground) 78%, transparent);
     background: color-mix(in oklab, var(--muted) 84%, var(--sidebar));
     box-shadow: var(--control-shadow);
