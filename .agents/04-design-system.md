@@ -17,7 +17,7 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 - Keep a consistent soft-corner system: 12px for framed tools, 10-15px for repeated raised items and dialogs, and 6-10px for compact controls. Interior panes may stay square when they are clipped by a rounded parent. Pill shapes remain reserved for status indicators.
 - A low-contrast Zinc-on-Zinc gradient spans the entire window to prevent a flat single-plane background. It may carry only a trace of signal blue, must remain subordinate to content, and must work in both themes.
 - No colorful gradient blobs, glass, glow, decorative background shapes, nested cards, oversized headings, or marketing composition.
-- Liquid Glass is reserved for compact navigation/control surfaces and must use actual pixel displacement rather than blur alone. The global control toolbar and Architecture filter field are the only current uses. Never apply it to content panels, list rows, trees, dialogs, or code surfaces; provide reduced-transparency, increased-contrast, and reduced-motion fallbacks.
+- Liquid Glass is reserved for compact navigation/control surfaces and must use actual pixel displacement rather than blur alone. The global control toolbar and Architecture filter field are the only current uses. Its surface treatment is static and geometry-driven: no pointer-position tracking, moving hotspots, decorative glow, or group-level press morphing. Never apply it to content panels, list rows, trees, dialogs, or code surfaces; provide reduced-transparency and increased-contrast fallbacks.
 
 ## 2. Layout
 

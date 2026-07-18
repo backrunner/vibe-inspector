@@ -24,15 +24,8 @@
   let mapWidth = $state(1);
   let mapHeight = $state(1);
 
-  function trackHighlight(event: PointerEvent): void {
-    const bounds = surface.getBoundingClientRect();
-    surface.style.setProperty('--glass-pointer-x', `${event.clientX - bounds.left}px`);
-    surface.style.setProperty('--glass-pointer-y', `${event.clientY - bounds.top}px`);
-  }
-
   onMount(() => {
-    let revision = 0;
-    const instanceId = crypto.randomUUID();
+    filterId = `vi-liquid-glass-${crypto.randomUUID()}`;
     const updateMap = () => {
       const bounds = surface.getBoundingClientRect();
       const map = generateLensMap({
@@ -46,7 +39,6 @@
       mapScale = map.scale;
       mapWidth = map.width;
       mapHeight = map.height;
-      filterId = `vi-liquid-glass-${instanceId}-${revision++}`;
     };
     const observer = new ResizeObserver(updateMap);
     observer.observe(surface);
@@ -61,11 +53,6 @@
   data-variant={variant}
   {role}
   aria-label={ariaLabel}
-  onpointermove={trackHighlight}
-  onpointerleave={() => {
-    surface.style.removeProperty('--glass-pointer-x');
-    surface.style.removeProperty('--glass-pointer-y');
-  }}
 >
   <svg class="glass-definitions" aria-hidden="true">
     <defs>
@@ -115,9 +102,6 @@
 
 <style>
   .liquid-glass-surface {
-    --glass-pointer-x: 72%;
-    --glass-pointer-y: 25%;
-
     position: relative;
     display: flex;
     isolation: isolate;
@@ -128,14 +112,6 @@
     padding: 2px;
     border-radius: calc(var(--radius-lg) + 2px);
     box-shadow: var(--glass-shadow);
-    transition:
-      transform var(--dur-micro) var(--ease-out),
-      box-shadow var(--dur-micro) var(--ease-out);
-  }
-
-  :global(.liquid-glass-surface[data-variant='toolbar']:has(button:active)) {
-    transform: scale(0.985);
-    box-shadow: var(--glass-shadow-active);
   }
 
   .liquid-glass-surface[data-variant='field'] {
@@ -194,28 +170,22 @@
 
   .glass-highlight {
     background:
-      radial-gradient(
-        circle 28px at var(--glass-pointer-x) var(--glass-pointer-y),
-        var(--glass-interaction-light),
-        transparent 72%
-      ),
       linear-gradient(145deg, var(--glass-leading-light), transparent 42%),
       linear-gradient(325deg, var(--glass-trailing-light), transparent 38%);
     box-shadow: inset 0 0 0 1px var(--glass-rim);
-    transition: background-position var(--dur-micro) var(--ease-out);
   }
 
   [data-variant='field'] .glass-highlight {
     background:
-      radial-gradient(
-        circle 34px at var(--glass-pointer-x) var(--glass-pointer-y),
-        color-mix(in oklab, var(--glass-interaction-light) 68%, transparent),
-        transparent 76%
-      ),
       linear-gradient(
         155deg,
         color-mix(in oklab, var(--glass-leading-light) 72%, transparent),
         transparent 46%
+      ),
+      linear-gradient(
+        335deg,
+        color-mix(in oklab, var(--glass-trailing-light) 68%, transparent),
+        transparent 42%
       );
   }
 
@@ -244,17 +214,6 @@
   @media (prefers-contrast: more) {
     .glass-highlight {
       box-shadow: inset 0 0 0 1px var(--foreground);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .liquid-glass-surface,
-    .glass-highlight {
-      transition: none;
-    }
-
-    :global(.liquid-glass-surface[data-variant='toolbar']:has(button:active)) {
-      transform: none;
     }
   }
 </style>

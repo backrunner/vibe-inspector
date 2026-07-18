@@ -64,10 +64,8 @@
   --glass-rim: rgb(255 255 255 / 72%);
   --glass-leading-light: rgb(255 255 255 / 48%);
   --glass-trailing-light: rgb(63 63 70 / 8%);
-  --glass-interaction-light: rgb(255 255 255 / 58%);
   --glass-shadow:
     0 1px 2px rgb(24 24 27 / 10%), 0 7px 18px rgb(24 24 27 / 7%), inset 0 -1px 0 rgb(24 24 27 / 6%);
-  --glass-shadow-active: 0 2px 7px rgb(24 24 27 / 10%), inset 0 1px 2px rgb(24 24 27 / 8%);
   --rail-header-surface: linear-gradient(
     180deg,
     transparent,
@@ -188,10 +186,8 @@
   --glass-rim: rgb(255 255 255 / 16%);
   --glass-leading-light: rgb(255 255 255 / 18%);
   --glass-trailing-light: rgb(0 0 0 / 18%);
-  --glass-interaction-light: rgb(255 255 255 / 24%);
   --glass-shadow:
     0 1px 2px rgb(0 0 0 / 38%), 0 9px 24px rgb(0 0 0 / 26%), inset 0 -1px 0 rgb(0 0 0 / 24%);
-  --glass-shadow-active: 0 2px 8px rgb(0 0 0 / 30%), inset 0 1px 3px rgb(0 0 0 / 32%);
   --rail-header-surface: linear-gradient(
     180deg,
     transparent,

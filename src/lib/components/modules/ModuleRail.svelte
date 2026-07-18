@@ -134,11 +134,6 @@
     position: relative;
   }
 
-  :global(.module-search-glass) {
-    --glass-pointer-x: 18%;
-    --glass-pointer-y: 28%;
-  }
-
   :global(.module-search-glass .search-icon) {
     position: absolute;
     top: 50%;
