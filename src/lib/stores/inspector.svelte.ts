@@ -510,21 +510,27 @@ export class InspectorStore {
     if (!project || !flow || flow.sourceRefs.length === 0) return;
 
     const evidencePaths = new Set(flow.sourceRefs.map((source) => source.path));
-    let relatedPaths: string[];
+    let relatedFiles: Array<{
+      path: string;
+      relationship?: SourceRef['codegraphRelationship'];
+      kinds?: string[];
+    }>;
     if (!isTauriRuntime()) {
-      relatedPaths = Object.keys(flow.files ?? {}).filter((path) => !evidencePaths.has(path));
+      relatedFiles = Object.keys(flow.files ?? {})
+        .filter((path) => !evidencePaths.has(path))
+        .map((path) => ({ path }));
     } else {
       try {
-        relatedPaths = await listCodegraphRelatedFiles(project.id, [...evidencePaths]);
+        relatedFiles = await listCodegraphRelatedFiles(project.id, [...evidencePaths]);
       } catch {
-        relatedPaths = [];
+        relatedFiles = [];
       }
     }
     if (request !== this.relatedSourceRequest) return;
 
-    this.relatedSourceRefs = relatedPaths.map((path) => ({
-      id: `codegraph:${path}`,
-      path,
+    this.relatedSourceRefs = relatedFiles.map((relation) => ({
+      id: `codegraph:${relation.path}`,
+      path: relation.path,
       startLine: 1,
       endLine: 1,
       symbol: '',
@@ -532,6 +538,8 @@ export class InspectorStore {
       status: 'current',
       contentHash: '',
       origin: 'codegraph',
+      codegraphRelationship: relation.relationship,
+      codegraphKinds: relation.kinds,
     }));
 
     if (

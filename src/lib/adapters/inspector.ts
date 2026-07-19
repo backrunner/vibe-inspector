@@ -66,6 +66,12 @@ export type SourceRange = {
   status: 'current' | 'stale';
 };
 
+export type CodegraphFileRelation = {
+  path: string;
+  relationship: 'dependency' | 'dependent' | 'both';
+  kinds: string[];
+};
+
 export async function loadInspectorSnapshot(projectId: string): Promise<InspectorSnapshotDto> {
   return invoke<InspectorSnapshotDto>('load_inspector_snapshot', { input: { projectId } });
 }
@@ -83,8 +89,8 @@ export async function readSourceFile(projectId: string, source: SourceRef): Prom
 export async function listCodegraphRelatedFiles(
   projectId: string,
   relativePaths: string[],
-): Promise<string[]> {
-  return invoke<string[]>('list_codegraph_related_files', {
+): Promise<CodegraphFileRelation[]> {
+  return invoke<CodegraphFileRelation[]>('list_codegraph_related_files', {
     input: { projectId, relativePaths },
   });
 }

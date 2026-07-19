@@ -83,7 +83,7 @@ src-tauri/
     storage/                 # SQLite/schema/repositories
       project_registry.rs   # versioned first-run root registry before SQLite migration
     fs_broker/               # canonical roots, path and range checks
-    codegraph.rs             # optional read-only related-file lookup from an existing local index
+    codegraph.rs             # optional read-only dependency lookup from an existing local index
     project_discovery.rs     # bounded root-marker scan and naming rules
     codex_history/           # history discovery parser
     mcp/                     # server and tool adapters
@@ -123,6 +123,6 @@ Every entity has `id`, `project_id`, `revision`, `created_at`, `updated_at`, and
 - MCP handlers cannot bypass the domain service or filesystem broker.
 - Diagram and editor libraries are adapters; the domain stores a renderer-neutral graph and source ranges.
 - The desktop source viewer may read a complete selected UTF-8 file through the filesystem broker while preserving the persisted range as a highlight. MCP source reads remain bounded range reads.
-- CodeGraph integration is optional and read-only. It may inspect only `<registered-root>/.codegraph/codegraph.db`, never creates or updates an index, and validates every related path against the registered project root before returning it as ephemeral UI context.
+- CodeGraph integration is optional and read-only. It may inspect only `<registered-root>/.codegraph/codegraph.db`, never creates or updates an index, and validates every related path against the registered project root before returning it as ephemeral UI context. Dependency direction and kind come only from explicit non-containment CodeGraph edges; the app does not infer or persist relationships.
 - Codex history scanning is best-effort and read-only. The first provider opens `~/.codex/state_5.sqlite` read-only, reads only thread identity/path metadata, resolves nested working directories upward to Git/workspace roots, and records parser versions and source paths.
 - Manual collection discovery is bounded and root-marker based. Once a project root is accepted, scanning prunes that subtree so monorepo packages are not registered as unrelated projects.

@@ -1,10 +1,11 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fs,
-    path::{Path, PathBuf},
+    path::Path,
 };
 
 use rusqlite::{params, Connection, OpenFlags};
+use serde::Serialize;
 
 use crate::{
     error::AppError,
@@ -14,9 +15,27 @@ use crate::{
 const CODEGRAPH_DATABASE: &str = ".codegraph/codegraph.db";
 const MAX_INPUT_FILES: usize = 64;
 const MAX_RELATED_FILES: usize = 80;
+const MAX_CANDIDATE_FILES: usize = MAX_RELATED_FILES * 4;
+const MAX_EDGE_KIND_CHARS: usize = 48;
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedFile {
+    pub path: String,
+    pub relationship: Relationship,
+    pub kinds: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum Relationship {
+    Dependency,
+    Dependent,
+    Both,
+}
 
 const DEPENDENTS_SQL: &str = "
-    SELECT DISTINCT src.file_path
+    SELECT DISTINCT src.file_path, e.kind
     FROM edges e
     JOIN nodes tgt ON tgt.id = e.target
     JOIN nodes src ON src.id = e.source
@@ -26,7 +45,7 @@ const DEPENDENTS_SQL: &str = "
 ";
 
 const DEPENDENCIES_SQL: &str = "
-    SELECT DISTINCT tgt.file_path
+    SELECT DISTINCT tgt.file_path, e.kind
     FROM edges e
     JOIN nodes src ON src.id = e.source
     JOIN nodes tgt ON tgt.id = e.target
@@ -35,7 +54,7 @@ const DEPENDENCIES_SQL: &str = "
       AND tgt.file_path != ?2
 ";
 
-pub fn related_files(root: &Path, source_paths: &[String]) -> Result<Vec<String>, AppError> {
+pub fn related_files(root: &Path, source_paths: &[String]) -> Result<Vec<RelatedFile>, AppError> {
     let canonical_root = canonical_root(root)?;
     let database_path = canonical_root.join(CODEGRAPH_DATABASE);
     if !database_path.is_file() {
@@ -68,37 +87,81 @@ pub fn related_files(root: &Path, source_paths: &[String]) -> Result<Vec<String>
     };
     let related = candidates
         .into_iter()
-        .filter(|path| !normalized_sources.contains(path))
-        .filter(|path| validated_source_path(&canonical_root, path).is_ok())
+        .filter(|(path, _)| !normalized_sources.contains(path))
+        .filter(|(path, _)| validated_source_path(&canonical_root, path).is_ok())
         .take(MAX_RELATED_FILES)
+        .map(|(path, (directions, kinds))| RelatedFile {
+            path,
+            relationship: match (
+                directions.contains(&Direction::Dependency),
+                directions.contains(&Direction::Dependent),
+            ) {
+                (true, true) => Relationship::Both,
+                (true, false) => Relationship::Dependency,
+                (false, true) => Relationship::Dependent,
+                (false, false) => unreachable!("CodeGraph relation without a direction"),
+            },
+            kinds: kinds.into_iter().collect(),
+        })
         .collect();
 
     Ok(related)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Direction {
+    Dependency,
+    Dependent,
+}
+
 fn query_related_files(
     connection: &Connection,
     source_paths: &BTreeSet<String>,
-) -> rusqlite::Result<BTreeSet<String>> {
+) -> rusqlite::Result<BTreeMap<String, (BTreeSet<Direction>, BTreeSet<String>)>> {
     let mut dependents = connection.prepare(DEPENDENTS_SQL)?;
     let mut dependencies = connection.prepare(DEPENDENCIES_SQL)?;
-    let mut related = BTreeSet::new();
+    let mut related = BTreeMap::new();
 
     for path in source_paths {
-        for statement in [&mut dependents, &mut dependencies] {
-            let rows = statement.query_map(params![path, path], |row| row.get::<_, String>(0))?;
-            for row in rows {
-                if let Ok(path) = row.and_then(|value| {
-                    normalize_relative_path(&value)
-                        .map_err(|_| rusqlite::Error::InvalidPath(PathBuf::from(value)))
-                }) {
-                    related.insert(path);
-                }
-            }
+        let dependent_rows = dependents.query_map(params![path, path], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in dependent_rows {
+            insert_relation(&mut related, row?, Direction::Dependent);
+        }
+        let dependency_rows = dependencies.query_map(params![path, path], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?;
+        for row in dependency_rows {
+            insert_relation(&mut related, row?, Direction::Dependency);
         }
     }
 
     Ok(related)
+}
+
+fn insert_relation(
+    related: &mut BTreeMap<String, (BTreeSet<Direction>, BTreeSet<String>)>,
+    (value, kind): (String, String),
+    direction: Direction,
+) {
+    let kind = kind
+        .trim()
+        .chars()
+        .take(MAX_EDGE_KIND_CHARS)
+        .collect::<String>();
+    if kind.is_empty() || kind == "contains" {
+        return;
+    }
+    let Ok(path) = normalize_relative_path(&value) else {
+        return;
+    };
+    if !related.contains_key(&path) && related.len() >= MAX_CANDIDATE_FILES {
+        return;
+    }
+    let (directions, kinds) = related.entry(path).or_default();
+    directions.insert(direction);
+    kinds.insert(kind);
 }
 
 fn normalize_relative_path(value: &str) -> Result<String, AppError> {
@@ -148,7 +211,7 @@ mod tests {
         let directory = TestDirectory::new("related");
         fs::create_dir_all(directory.path().join("src")).expect("create sources");
         fs::create_dir_all(directory.path().join(".codegraph")).expect("create index directory");
-        for file in ["a.rs", "b.rs", "c.rs"] {
+        for file in ["a.rs", "b.rs", "c.rs", "d.rs"] {
             fs::write(directory.path().join("src").join(file), file).expect("write source");
         }
         let connection = Connection::open(directory.path().join(CODEGRAPH_DATABASE))
@@ -159,9 +222,11 @@ mod tests {
                 CREATE TABLE nodes (id INTEGER PRIMARY KEY, file_path TEXT NOT NULL);
                 CREATE TABLE edges (source INTEGER NOT NULL, target INTEGER NOT NULL, kind TEXT NOT NULL);
                 INSERT INTO nodes (id, file_path) VALUES
-                  (1, 'src/a.rs'), (2, 'src/b.rs'), (3, 'src/c.rs'), (4, '../outside.rs');
+                  (1, 'src/a.rs'), (2, 'src/b.rs'), (3, 'src/c.rs'), (4, '../outside.rs'),
+                  (5, 'src/d.rs');
                 INSERT INTO edges (source, target, kind) VALUES
-                  (2, 1, 'calls'), (1, 3, 'imports'), (1, 4, 'imports'), (3, 1, 'contains');
+                  (2, 1, 'calls'), (1, 3, 'imports'), (1, 4, 'imports'), (3, 1, 'contains'),
+                  (1, 5, 'imports'), (5, 1, 'calls');
                 ",
             )
             .expect("seed codegraph fixture");
@@ -170,7 +235,26 @@ mod tests {
         let related = related_files(directory.path(), &["src/a.rs".to_string()])
             .expect("query related files");
 
-        assert_eq!(related, vec!["src/b.rs", "src/c.rs"]);
+        assert_eq!(
+            related,
+            vec![
+                RelatedFile {
+                    path: "src/b.rs".to_string(),
+                    relationship: Relationship::Dependent,
+                    kinds: vec!["calls".to_string()],
+                },
+                RelatedFile {
+                    path: "src/c.rs".to_string(),
+                    relationship: Relationship::Dependency,
+                    kinds: vec!["imports".to_string()],
+                },
+                RelatedFile {
+                    path: "src/d.rs".to_string(),
+                    relationship: Relationship::Both,
+                    kinds: vec!["calls".to_string(), "imports".to_string()],
+                },
+            ]
+        );
     }
 
     #[test]

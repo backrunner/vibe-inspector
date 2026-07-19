@@ -39,6 +39,12 @@
   const lineCount = $derived(code.split('\n').length);
   const hasHighlightedRange = $derived(file.origin !== 'codegraph');
 
+  function codegraphSummary(source: SourceRef): string {
+    const relationship = source.codegraphRelationship ?? 'related file';
+    const kinds = source.codegraphKinds?.length ? ` · ${source.codegraphKinds.join(', ')}` : '';
+    return `CodeGraph ${relationship}${kinds}`;
+  }
+
   function editorTheme(currentTheme: 'dark' | 'light') {
     return currentTheme === 'dark' ? 'vibe-inspector-dark' : 'vibe-inspector-light';
   }
@@ -229,7 +235,7 @@
       <span class="range-marker"></span>
       {readStatus === 'stale' ? 'stale source · ' : ''}{hasHighlightedRange
         ? `highlighted lines ${file.startLine}-${file.endLine}`
-        : 'CodeGraph related file'}
+        : codegraphSummary(file)}
     </span>
     <span class="readonly-lock"><LockKeyhole aria-hidden="true" /> read only</span>
   </footer>

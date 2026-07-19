@@ -298,7 +298,7 @@ async fn read_project_file(
 async fn list_codegraph_related_files(
     app: tauri::AppHandle,
     input: ListCodegraphRelatedFilesInput,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Vec<codegraph::RelatedFile>, AppError> {
     tauri::async_runtime::spawn_blocking(move || {
         let database = InspectorDatabase::for_app(&app)?;
         database.initialize()?;

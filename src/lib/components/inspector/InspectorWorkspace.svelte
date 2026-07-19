@@ -594,6 +594,7 @@
 
     :global([data-slot='segmented-control'].overview-toggle) {
       display: inline-flex;
+      justify-self: end;
     }
 
     .flow-panel,

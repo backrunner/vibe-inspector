@@ -171,11 +171,38 @@
   function rangeLabel(refs: SourceRef[]): string {
     if (refs.length > 1) return `${refs.length} ranges`;
     const ref = refs[0];
-    if (ref?.origin === 'codegraph') return 'related';
+    if (ref?.origin === 'codegraph') return codegraphRelationshipLabel(ref);
     return ref ? `L${ref.startLine}-${ref.endLine}` : '';
   }
 
+  function codegraphRelationshipLabel(ref: SourceRef): string {
+    if (ref.codegraphRelationship === 'dependency') return 'dependency';
+    if (ref.codegraphRelationship === 'dependent') return 'dependent';
+    if (ref.codegraphRelationship === 'both') return 'both';
+    return 'related';
+  }
+
+  function fileTitle(file: SourceTreeFile): string {
+    const relation = file.refs.find((ref) => ref.origin === 'codegraph');
+    if (!relation) return file.path;
+    const direction =
+      relation.codegraphRelationship === 'dependency'
+        ? 'Referenced source depends on this file'
+        : relation.codegraphRelationship === 'dependent'
+          ? 'This file depends on referenced source'
+          : relation.codegraphRelationship === 'both'
+            ? 'Dependencies exist in both directions'
+            : 'Related by CodeGraph';
+    const kinds = relation.codegraphKinds?.length
+      ? ` via ${relation.codegraphKinds.join(', ')}`
+      : '';
+    return `${file.path}\n${direction}${kinds}`;
+  }
+
   function rangeDetail(ref: SourceRef): string {
+    if (ref.origin === 'codegraph' && ref.codegraphKinds?.length) {
+      return ref.codegraphKinds.join(', ');
+    }
     if (ref.symbol.trim()) return ref.symbol;
     if (ref.label.trim() && ref.label !== ref.path) return ref.label;
     return '';
@@ -253,7 +280,7 @@
               aria-selected={item.node.refs.length === 1 && item.node.id === selectedFileId}
               tabindex={itemId(item) === activeTreeItemId ? 0 : -1}
               data-tree-id={item.node.id}
-              title={item.node.path}
+              title={fileTitle(item.node)}
               onclick={() => selectFile(item.node)}
               onkeydown={(event) => handleKeydown(event, item)}
             >

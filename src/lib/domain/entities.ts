@@ -11,6 +11,8 @@ export type SourceRef = {
   status: 'current' | 'stale' | 'unreadable';
   contentHash: string;
   origin?: 'evidence' | 'codegraph';
+  codegraphRelationship?: 'dependency' | 'dependent' | 'both';
+  codegraphKinds?: string[];
   revision?: number;
 };
 

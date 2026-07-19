@@ -49,7 +49,7 @@ Integration tests are required for:
 - Initial webview interactive target: <2 seconds on a recent Apple Silicon Mac with a seeded project.
 - Project list and module tree should render 1,000 rows without long tasks caused by full-tree rerenders.
 - Module-tree filtering, descendant flow counts, and visible-row construction use one linear domain pass and are covered by a 1,000-module fixture; templates must not recurse once per rendered row.
-- The desktop viewer may read the complete selected UTF-8 file up to the filesystem broker's file-size limit so evidence can be understood in context. MCP reads stay range-bounded, and related-file discovery must query only an existing local CodeGraph index.
+- The desktop viewer may read the complete selected UTF-8 file up to the filesystem broker's file-size limit so evidence can be understood in context. MCP reads stay range-bounded, and related-file discovery must query only an existing local CodeGraph index. CodeGraph dependency labels must preserve explicit edge direction and kind rather than relying on filename or import-text heuristics.
 - Debounce history scans and file hash refreshes. Never scan the whole monorepo on every tree expansion.
 - Manual collection discovery visits at most 4,096 directories, returns at most 200 candidates, skips symlinks, and stops below a recognized project root.
 - Keep diagram node updates incremental; preserve viewport and selection on data refresh.
