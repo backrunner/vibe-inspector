@@ -61,11 +61,14 @@
     var(--titlebar)
   );
   --glass-tint: color-mix(in oklab, white 26%, transparent);
-  --glass-rim: rgb(255 255 255 / 72%);
-  --glass-leading-light: rgb(255 255 255 / 48%);
-  --glass-trailing-light: rgb(63 63 70 / 8%);
+  --glass-rim: rgb(24 24 27 / 9%);
+  --glass-specular: rgb(255 255 255 / 90%);
+  --glass-specular-shade: rgb(24 24 27 / 12%);
+  --glass-leading-light: rgb(255 255 255 / 26%);
+  --glass-trailing-light: rgb(63 63 70 / 5%);
   --glass-shadow:
-    0 1px 2px rgb(24 24 27 / 10%), 0 7px 18px rgb(24 24 27 / 7%), inset 0 -1px 0 rgb(24 24 27 / 6%);
+    inset 0 1px 0 rgb(255 255 255 / 50%), 0 1px 2px rgb(24 24 27 / 10%),
+    0 7px 18px rgb(24 24 27 / 7%), inset 0 -1px 0 rgb(24 24 27 / 6%);
   --rail-header-surface: linear-gradient(
     180deg,
     transparent,
@@ -83,6 +86,8 @@
   --panel-edge: color-mix(in oklab, var(--border) 78%, transparent);
   --panel-divider: color-mix(in oklab, var(--border) 70%, transparent);
   --panel-border: color-mix(in oklab, var(--border) 86%, var(--foreground) 14%);
+  /* Diagram/editor tokens cross library boundaries (Mermaid khroma, Monaco
+     themes) that only parse hex/rgb(a) — keep these as hex, not oklch. */
   --diagram-surface: #fbfbfc;
   --diagram-node: #f4f4f5;
   --diagram-text: #18181b;
@@ -183,11 +188,14 @@
     var(--titlebar)
   );
   --glass-tint: color-mix(in oklab, var(--titlebar) 44%, transparent);
-  --glass-rim: rgb(255 255 255 / 16%);
-  --glass-leading-light: rgb(255 255 255 / 18%);
-  --glass-trailing-light: rgb(0 0 0 / 18%);
+  --glass-rim: rgb(255 255 255 / 13%);
+  --glass-specular: rgb(255 255 255 / 38%);
+  --glass-specular-shade: rgb(0 0 0 / 28%);
+  --glass-leading-light: rgb(255 255 255 / 10%);
+  --glass-trailing-light: rgb(0 0 0 / 14%);
   --glass-shadow:
-    0 1px 2px rgb(0 0 0 / 38%), 0 9px 24px rgb(0 0 0 / 26%), inset 0 -1px 0 rgb(0 0 0 / 24%);
+    inset 0 1px 0 rgb(255 255 255 / 9%), 0 1px 2px rgb(0 0 0 / 38%), 0 9px 24px rgb(0 0 0 / 26%),
+    inset 0 -1px 0 rgb(0 0 0 / 24%);
   --rail-header-surface: linear-gradient(
     180deg,
     transparent,
@@ -270,6 +278,11 @@
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.25);
+  --text-meta: 10px;
+  --text-caption: 11px;
+  --text-rail: 12px;
+  --text-body: 13px;
+  --text-heading: 15px;
 }
 
 @layer base {
@@ -326,6 +339,21 @@
     outline: 3px solid var(--ring);
     outline-offset: var(--app-focus-ring-offset, 2px);
   }
+
+  @keyframes rail-content-in {
+    from {
+      opacity: 0;
+      transform: translateX(-6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .rail-content {
+    animation: rail-content-in var(--dur-rail) var(--ease-out) both;
+  }
 }
 
 ::selection {
@@ -341,5 +369,9 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+
+  .rail-content {
+    animation: none;
   }
 }

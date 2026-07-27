@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { Skeleton } from '$lib/components/ui/skeleton';
 
   const maxCachedDiagrams = 12;
   const diagramCache = new Map<string, string>();
@@ -115,7 +116,14 @@
   {:else if svg}
     <div class="diagram-svg">{@html svg}</div>
   {:else}
-    <div class="diagram-state">Rendering flow diagram</div>
+    <div class="diagram-skeleton" aria-label="Rendering flow diagram" aria-busy="true">
+      <Skeleton class="h-full w-full rounded-lg" />
+      <div class="diagram-skeleton-nodes" aria-hidden="true">
+        <Skeleton class="h-12 w-24 rounded-lg bg-background" />
+        <Skeleton class="h-12 w-28 rounded-lg bg-background" />
+        <Skeleton class="h-12 w-24 rounded-lg bg-background" />
+      </div>
+    </div>
   {/if}
 </div>
 
@@ -161,5 +169,26 @@
     max-width: 46ch;
     color: var(--destructive);
     text-align: center;
+  }
+
+  .diagram-skeleton {
+    display: grid;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    padding: 12px 16px;
+  }
+
+  .diagram-skeleton > :global(*) {
+    grid-area: 1 / 1;
+  }
+
+  .diagram-skeleton-nodes {
+    display: flex;
+    align-items: center;
+    justify-content: space-evenly;
+    gap: 18px;
+    padding: 24px;
   }
 </style>

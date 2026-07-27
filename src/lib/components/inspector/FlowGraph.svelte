@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Maximize2, ZoomIn, ZoomOut } from '@lucide/svelte';
+  import { Maximize2, Waypoints, ZoomIn, ZoomOut } from '@lucide/svelte';
   import { onMount, tick } from 'svelte';
   import IconButton from '$components/IconButton.svelte';
   import {
@@ -15,6 +15,7 @@
   let lastFlowId = $state('');
   let viewport = $state<HTMLDivElement>();
   let viewportWidth = $state(0);
+  const hasNodes = $derived(flow.graph.nodes.length > 0);
   const definition = $derived(flowGraphToMermaid(flow.graph, 'LR'));
   const diagramWidth = $derived.by(() => {
     if (!viewportWidth) return undefined;
@@ -81,18 +82,28 @@
       <strong>Business flow</strong>
       <span>{flow.graph.nodes.length} steps</span>
     </div>
-    <div class="controls">
-      <IconButton label="Zoom out" icon={ZoomOut} onclick={() => void setZoom(zoom - 0.1)} />
-      <span>{Math.round(zoom * 100)}%</span>
-      <IconButton label="Zoom in" icon={ZoomIn} onclick={() => void setZoom(zoom + 0.1)} />
-      <IconButton label="Reset diagram view" icon={Maximize2} onclick={() => void setZoom(1)} />
-    </div>
+    {#if hasNodes}
+      <div class="controls">
+        <IconButton label="Zoom out" icon={ZoomOut} onclick={() => void setZoom(zoom - 0.1)} />
+        <span>{Math.round(zoom * 100)}%</span>
+        <IconButton label="Zoom in" icon={ZoomIn} onclick={() => void setZoom(zoom + 0.1)} />
+        <IconButton label="Reset diagram view" icon={Maximize2} onclick={() => void setZoom(1)} />
+      </div>
+    {/if}
   </header>
 
   <div bind:this={viewport} class="viewport">
-    <div class="diagram-scale" style:width={diagramWidth ? `${diagramWidth}px` : '100%'}>
-      <MermaidDiagram {definition} {theme} label={`${flow.name} business flow`} />
-    </div>
+    {#if hasNodes}
+      <div class="diagram-scale" style:width={diagramWidth ? `${diagramWidth}px` : '100%'}>
+        <MermaidDiagram {definition} {theme} label={`${flow.name} business flow`} />
+      </div>
+    {:else}
+      <div class="graph-empty app-state-fill" role="status">
+        <Waypoints class="size-4" strokeWidth={1.7} aria-hidden="true" />
+        <strong>No flow structure</strong>
+        <span>No steps are recorded for this flow yet.</span>
+      </div>
+    {/if}
   </div>
 </section>
 
@@ -155,6 +166,23 @@
   .controls > span {
     width: 34px;
     text-align: center;
+  }
+
+  .graph-empty {
+    min-height: 0;
+    gap: 8px;
+    color: var(--muted-foreground);
+    font-size: 11.5px;
+  }
+
+  .graph-empty > strong {
+    color: var(--foreground);
+    font-weight: 600;
+  }
+
+  .graph-empty > span {
+    max-width: 24ch;
+    line-height: 1.45;
   }
 
   .viewport {

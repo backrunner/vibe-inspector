@@ -2,6 +2,7 @@
   import { tick } from 'svelte';
   import { ChevronDown, ChevronRight, Package, SearchX, Workflow } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
+  import { cn } from '$lib/utils.js';
   import { inspectorStore } from '$stores/inspector.svelte';
   import { buildModuleTree, moduleAncestorIds, type ModuleTreeRow } from '$domain/module-tree';
 
@@ -130,10 +131,10 @@
         >
           {#if row.depth > 0}<span class="module-guide" aria-hidden="true"></span>{/if}
           {#if hasChildren(row)}
-            <button
-              type="button"
-              class="disclosure"
-              tabindex="-1"
+            <Button
+              variant="ghost"
+              class="disclosure rounded-none px-0 focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0"
+              tabindex={-1}
               aria-label={`${isOpen(row.module.id) ? 'Collapse' : 'Expand'} ${row.module.name}`}
               onclick={() => toggle(row.module.id)}
             >
@@ -142,13 +143,13 @@
               {:else}
                 <ChevronRight class="size-3" strokeWidth={1.8} />
               {/if}
-            </button>
+            </Button>
           {:else}
             <span class="disclosure" aria-hidden="true"></span>
           {/if}
-          <button
-            type="button"
-            class="module-select"
+          <Button
+            variant="ghost"
+            class="module-select rounded-none focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0"
             role="treeitem"
             aria-level={row.depth + 1}
             aria-expanded={hasChildren(row) ? isOpen(row.module.id) : undefined}
@@ -165,14 +166,16 @@
                 {model.flowCounts.get(row.module.id)}
               </small>
             {/if}
-          </button>
+          </Button>
         </div>
       {:else}
-        <button
-          type="button"
-          class:selected={row.flow.id === store.selectedFlowId}
-          class="flow-row tree-row"
-          style:--depth={row.depth}
+        <Button
+          variant="ghost"
+          class={cn(
+            'flow-row tree-row h-auto font-normal focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0',
+            row.flow.id === store.selectedFlowId && 'selected',
+          )}
+          style="--depth: {row.depth}"
           role="treeitem"
           aria-level={row.depth + 1}
           aria-selected={row.flow.id === store.selectedFlowId}
@@ -186,7 +189,7 @@
           <span class="flow-branch" aria-hidden="true"></span>
           <Workflow class="size-3.5 shrink-0" strokeWidth={1.7} />
           <span class="flow-label">{row.flow.name}</span>
-        </button>
+        </Button>
       {/if}
     {/each}
   {/if}
@@ -226,7 +229,7 @@
     line-height: 1.45;
   }
 
-  .tree-row {
+  .tree :global(.tree-row) {
     position: relative;
     min-width: 0;
     color: var(--muted-foreground);
@@ -238,6 +241,9 @@
     align-items: center;
     padding-left: calc(4px + var(--depth) * 18px);
     border-radius: var(--radius-md);
+    transition:
+      color var(--dur-micro) var(--ease-out),
+      background-color var(--dur-micro) var(--ease-out);
   }
 
   .module-row:hover,
@@ -259,7 +265,7 @@
     background: var(--border);
   }
 
-  .disclosure {
+  .tree :global(.disclosure) {
     display: grid;
     width: 20px;
     height: 26px;
@@ -270,11 +276,11 @@
     background: transparent;
   }
 
-  button.disclosure:hover {
+  .tree :global(button.disclosure:hover) {
     color: var(--foreground);
   }
 
-  .module-select {
+  .tree :global(.module-select) {
     display: flex;
     min-width: 0;
     height: 30px;
@@ -290,7 +296,7 @@
     font-weight: 530;
   }
 
-  .module-select small {
+  .tree :global(.module-select small) {
     min-width: 14px;
     color: var(--muted-foreground);
     font-family: var(--app-font-mono);
@@ -298,7 +304,7 @@
     text-align: right;
   }
 
-  .flow-row {
+  .tree :global(.flow-row) {
     --flow-indent: calc(16px + var(--depth) * 18px);
 
     display: flex;
@@ -321,12 +327,12 @@
       border-color var(--dur-micro) var(--ease-out);
   }
 
-  .flow-row:hover {
+  .tree :global(.flow-row:hover) {
     color: var(--foreground);
     background: color-mix(in oklab, var(--muted) 62%, transparent);
   }
 
-  .flow-row.selected {
+  .tree :global(.flow-row.selected) {
     border-color: color-mix(in oklab, var(--signal) 30%, var(--border));
     color: var(--foreground);
     background: color-mix(in oklab, var(--signal) 8%, transparent);
@@ -341,9 +347,9 @@
     white-space: nowrap;
   }
 
-  .flow-row:focus-visible,
-  .module-select:focus-visible,
-  .disclosure:focus-visible {
+  .tree :global(.flow-row:focus-visible),
+  .tree :global(.module-select:focus-visible),
+  .tree :global(.disclosure:focus-visible) {
     outline: 2px solid var(--ring);
     outline-offset: -2px;
   }

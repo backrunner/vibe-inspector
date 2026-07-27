@@ -42,6 +42,8 @@
 <script lang="ts">
   import { tick } from 'svelte';
   import { ChevronRight, FileCode2, Folder, FolderOpen } from '@lucide/svelte';
+  import { Button } from '$lib/components/ui/button';
+  import { cn } from '$lib/utils.js';
   import type { SourceRef } from '$domain/entities';
   import {
     buildSourceTree,
@@ -223,12 +225,14 @@
         {#each visibleNodes as item (itemId(item))}
           {#if item.kind === 'range'}
             {@const detail = rangeDetail(item.ref)}
-            <button
-              type="button"
-              class:selected={item.ref.id === selectedRefId}
-              class:stale={item.ref.status !== 'current'}
-              class="tree-row range-row"
-              style:--tree-depth={item.depth}
+            <Button
+              variant="ghost"
+              class={cn(
+                'tree-row range-row justify-start font-normal focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0',
+                item.ref.id === selectedRefId && 'selected',
+                item.ref.status !== 'current' && 'stale',
+              )}
+              style="--tree-depth: {item.depth}"
               role="treeitem"
               aria-level={item.depth + 1}
               aria-selected={item.ref.id === selectedRefId}
@@ -241,12 +245,12 @@
               <span class="range-branch" aria-hidden="true"></span>
               <span class="range-label">L{item.ref.startLine}-{item.ref.endLine}</span>
               {#if detail}<small>{detail}</small>{/if}
-            </button>
+            </Button>
           {:else if item.node.kind === 'folder'}
-            <button
-              type="button"
-              class="tree-row folder-row"
-              style:--tree-depth={item.depth}
+            <Button
+              variant="ghost"
+              class="tree-row folder-row justify-start font-normal focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0"
+              style="--tree-depth: {item.depth}"
               role="treeitem"
               aria-level={item.depth + 1}
               aria-expanded={isExpanded(item.node.id)}
@@ -264,16 +268,18 @@
                 <Folder class="tree-icon" strokeWidth={1.7} />
               {/if}
               <span>{item.node.name}</span>
-            </button>
+            </Button>
           {:else}
-            <button
-              type="button"
-              class:context={item.node.refs.length > 1 && item.node.id === selectedFileId}
-              class:selected={item.node.refs.length === 1 && item.node.id === selectedFileId}
-              class:stale={item.node.refs.some((ref) => ref.status !== 'current')}
-              class:related={item.node.refs.every((ref) => ref.origin === 'codegraph')}
-              class="tree-row file-row"
-              style:--tree-depth={item.depth}
+            <Button
+              variant="ghost"
+              class={cn(
+                'tree-row file-row justify-start font-normal focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0',
+                item.node.refs.length > 1 && item.node.id === selectedFileId && 'context',
+                item.node.refs.length === 1 && item.node.id === selectedFileId && 'selected',
+                item.node.refs.some((ref) => ref.status !== 'current') && 'stale',
+                item.node.refs.every((ref) => ref.origin === 'codegraph') && 'related',
+              )}
+              style="--tree-depth: {item.depth}"
               role="treeitem"
               aria-level={item.depth + 1}
               aria-expanded={item.node.refs.length > 1 ? isExpanded(item.node.id) : undefined}
@@ -292,7 +298,7 @@
               <FileCode2 class="tree-icon" strokeWidth={1.7} />
               <span class="file-name">{item.node.name}</span>
               <small>{rangeLabel(item.node.refs)}</small>
-            </button>
+            </Button>
           {/if}
         {/each}
       </div>
@@ -380,7 +386,7 @@
     padding: 7px;
   }
 
-  .tree-row {
+  .tree :global(.tree-row) {
     display: flex;
     width: max-content;
     min-width: 100%;
@@ -401,44 +407,44 @@
       border-color var(--dur-micro) var(--ease-out);
   }
 
-  .tree-row:hover {
+  .tree :global(.tree-row:hover) {
     color: var(--foreground);
     background: color-mix(in oklab, var(--muted) 64%, transparent);
   }
 
-  .tree-row:active {
+  .tree :global(.tree-row:active) {
     background: color-mix(in oklab, var(--muted) 78%, transparent);
     box-shadow: var(--inset-shadow);
   }
 
-  .tree-row:disabled {
+  .tree :global(.tree-row:disabled) {
     cursor: not-allowed;
     opacity: 0.55;
   }
 
-  .tree-row:focus-visible {
+  .tree :global(.tree-row:focus-visible) {
     outline: 2px solid var(--ring);
     outline-offset: -2px;
   }
 
-  .tree-row.selected {
+  .tree :global(.tree-row.selected) {
     border-color: color-mix(in oklab, var(--signal) 30%, var(--border));
     color: var(--foreground);
     background: color-mix(in oklab, var(--signal) 9%, var(--panel));
     box-shadow: var(--selected-shadow);
   }
 
-  .tree-row.context {
+  .tree :global(.tree-row.context) {
     color: var(--foreground);
     background: color-mix(in oklab, var(--muted) 42%, transparent);
   }
 
-  .tree-row.stale small,
-  .tree-row.stale .range-label {
+  .tree :global(.tree-row.stale small),
+  .tree :global(.tree-row.stale .range-label) {
     color: var(--status-warning);
   }
 
-  .tree-row.related small {
+  .tree :global(.tree-row.related small) {
     color: color-mix(in oklab, var(--muted-foreground) 82%, var(--signal) 18%);
   }
 
@@ -462,12 +468,12 @@
     flex: 0 0 14px;
   }
 
-  .folder-row span,
+  .tree :global(.folder-row span),
   .file-name {
     white-space: nowrap;
   }
 
-  .folder-row span {
+  .tree :global(.folder-row span) {
     font-weight: 550;
   }
 
@@ -478,14 +484,14 @@
     font-size: 10.8px;
   }
 
-  .file-row small {
+  .tree :global(.file-row small) {
     flex: 0 0 auto;
     color: var(--muted-foreground);
     font-family: var(--app-font-mono);
     font-size: 10px;
   }
 
-  .range-row {
+  .tree :global(.range-row) {
     gap: 7px;
     padding-left: calc(10px + var(--tree-depth) * 15px);
   }
@@ -508,7 +514,7 @@
     font-size: 10.5px;
   }
 
-  .range-row small {
+  .tree :global(.range-row small) {
     flex: 0 0 auto;
     color: var(--muted-foreground);
     font-family: var(--app-font-mono);

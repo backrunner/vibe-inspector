@@ -12,8 +12,8 @@
 <Dialog.Root bind:open={store.activityOpen}>
   <Dialog.Content class="activity-dialog gap-0 overflow-hidden p-0 sm:max-w-[680px]">
     <Dialog.Header class="border-b px-5 py-4 text-left">
-      <Dialog.Title class="text-[15px]">Activity</Dialog.Title>
-      <Dialog.Description class="text-[12px]">
+      <Dialog.Title class="text-heading">Activity</Dialog.Title>
+      <Dialog.Description class="text-rail">
         {store.selectedProject?.name ?? 'No project selected'}
       </Dialog.Description>
     </Dialog.Header>

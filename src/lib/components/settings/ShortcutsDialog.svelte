@@ -14,8 +14,8 @@
 <Dialog.Root bind:open={store.shortcutsOpen}>
   <Dialog.Content class="shortcuts-dialog gap-0 overflow-hidden p-0 sm:max-w-[460px]">
     <Dialog.Header class="border-b px-5 py-4 text-left">
-      <Dialog.Title class="text-[15px]">Keyboard shortcuts</Dialog.Title>
-      <Dialog.Description class="text-[12px]"
+      <Dialog.Title class="text-heading">Keyboard shortcuts</Dialog.Title>
+      <Dialog.Description class="text-rail"
         >Navigate the inspector without leaving context.</Dialog.Description
       >
     </Dialog.Header>
@@ -53,6 +53,7 @@
     padding: 0 10px;
     border-radius: var(--radius-md);
     font-size: 12.5px;
+    transition: background-color var(--dur-micro) var(--ease-out);
   }
 
   .shortcut-row:hover {

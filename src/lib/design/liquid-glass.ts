@@ -6,6 +6,8 @@ export interface LensMapOptions {
   depth?: number;
   curvature?: number;
   opacity?: number;
+  /** Neutral padding around the lens so rim displacement samples real painted pixels. */
+  margin?: number;
 }
 
 export interface LensMap {
@@ -57,13 +59,15 @@ export function generateLensMap({
   width,
   height,
   radius,
-  scale = 0.085,
-  depth = 8,
-  curvature = 38,
+  scale = 0.09,
+  depth = 9,
+  curvature = 44,
   opacity = 0.88,
+  margin = 0,
 }: LensMapOptions): LensMap {
-  const mapWidth = Math.max(1, Math.round(width));
-  const mapHeight = Math.max(1, Math.round(height));
+  const marginPx = Math.max(0, Math.round(margin));
+  const mapWidth = Math.max(1, Math.round(width) + marginPx * 2);
+  const mapHeight = Math.max(1, Math.round(height) + marginPx * 2);
   const canvas = document.createElement('canvas');
   canvas.width = mapWidth;
   canvas.height = mapHeight;
@@ -74,8 +78,8 @@ export function generateLensMap({
   const image = context.createImageData(mapWidth, mapHeight);
   const centerX = mapWidth / 2;
   const centerY = mapHeight / 2;
-  const halfWidth = mapWidth / 2;
-  const halfHeight = mapHeight / 2;
+  const halfWidth = Math.round(width) / 2;
+  const halfHeight = Math.round(height) / 2;
   const lensRadius = Math.min(radius, halfWidth, halfHeight);
   const centerDistance = Math.abs(
     roundedRectDistance(centerX, centerY, centerX, centerY, halfWidth, halfHeight, lensRadius),
@@ -142,7 +146,7 @@ export function generateLensMap({
   context.putImageData(image, 0, 0);
   return {
     dataUrl: canvas.toDataURL('image/png'),
-    scale: scale * mapWidth,
+    scale: scale * Math.round(width),
     width: mapWidth,
     height: mapHeight,
   };

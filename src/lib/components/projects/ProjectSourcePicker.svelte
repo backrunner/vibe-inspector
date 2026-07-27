@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade } from 'svelte/transition';
   import {
     ChevronLeft,
     ChevronRight,
@@ -178,163 +179,199 @@
   }
 </script>
 
-{#if step === 'choose'}
-  <div class="choice-list">
-    <button class="app-focus-ring" onclick={scanHistory}>
-      <span class="choice-icon"><History strokeWidth={1.7} /></span>
-      <span class="choice-copy">
-        <strong>Codex history</strong>
-        <span>Find repositories referenced by your local Codex conversations.</span>
-      </span>
-      <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
-    </button>
-    <button class="app-focus-ring" onclick={() => selectAndScan('collection')}>
-      <span class="choice-icon"><Folders strokeWidth={1.7} /></span>
-      <span class="choice-copy">
-        <strong>Projects folder</strong>
-        <span>Scan a parent folder for repository and workspace roots.</span>
-      </span>
-      <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
-    </button>
-    <button class="app-focus-ring" onclick={() => selectAndScan('single-project')}>
-      <span class="choice-icon"><FolderGit2 strokeWidth={1.7} /></span>
-      <span class="choice-copy">
-        <strong>Single project</strong>
-        <span>Add one repository or workspace from its root folder.</span>
-      </span>
-      <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
-    </button>
-  </div>
-
-  <p class="boundary-note">
-    Codex discovery reads project paths and conversation IDs, never message content.
-  </p>
-{:else if step === 'scanning'}
-  <div class="state-view app-state-fill" aria-live="polite">
-    <span class="state-icon scanning"><Search strokeWidth={1.7} /></span>
-    <strong>Looking for project roots</strong>
-    <span>Checking repository and workspace markers.</span>
-  </div>
-{:else if step === 'registering'}
-  <div class="state-view app-state-fill" aria-live="polite" aria-busy="true">
-    <span class="state-icon scanning"><FolderPlus strokeWidth={1.7} /></span>
-    <strong>Adding projects</strong>
-    <span>Saving the selected repositories to your local workspace.</span>
-  </div>
-{:else if step === 'error'}
-  <div class="state-view app-state-fill" role="alert">
-    <span class="state-icon error"><TriangleAlert strokeWidth={1.7} /></span>
-    <strong
-      >{errorKind === 'registration' ? 'Could not add projects' : 'Could not scan projects'}</strong
-    >
-    <span>{errorMessage}</span>
-    {#if errorKind === 'registration'}
-      <div class="error-actions">
-        <Button size="sm" onclick={registerProjects}>
-          <RefreshCw data-icon="inline-start" />Retry
-        </Button>
-        <Button variant="ghost" size="sm" onclick={() => (step = 'review')}>Review selection</Button
-        >
-      </div>
-    {:else}
-      <Button variant="outline" size="sm" onclick={reset}>Try another source</Button>
-    {/if}
-  </div>
-{:else if result}
-  {#if result.candidates.length === 0}
-    <div class="state-view compact app-state-fill">
-      <span class="state-icon"><Search strokeWidth={1.7} /></span>
-      <strong>No projects found</strong>
-      <span>Choose a different folder or add one project directly.</span>
-      <Button variant="outline" size="sm" onclick={reset}>Try another source</Button>
-    </div>
-  {:else}
-    <div class="review-context">
-      <span class="review-source" title={result.selectedRoot}>
-        {#if reviewSource === 'codex-history'}
-          <History strokeWidth={1.7} />
-        {:else}
-          <Folders strokeWidth={1.7} />
-        {/if}
-        <span>{result.selectedRoot}</span>
-      </span>
-      <span
-        >{result.candidates.length} {result.candidates.length === 1 ? 'project' : 'projects'}</span
-      >
-    </div>
-
-    <div class="selection-bar">
-      <label>
-        <Checkbox
-          checked={allCandidatesSelected}
-          indeterminate={selectionIsMixed}
-          onCheckedChange={setAllSelected}
-          aria-label="Select all detected projects"
-        />
-        <span>Select all</span>
-      </label>
-      <span>{selectedCandidates.length} selected</span>
-    </div>
-
-    <ScrollArea class="candidate-scroll" style={`height: min(${reviewViewportHeight}px, 42vh);`}>
-      <div class="candidate-list">
-        {#each result.candidates as candidate (candidate.rootPath)}
-          <label class:selected={selectedRoots.has(candidate.rootPath)}>
-            <Checkbox
-              checked={selectedRoots.has(candidate.rootPath)}
-              onCheckedChange={(checked) => setSelected(candidate, checked)}
-              aria-label={`Add ${candidate.name}`}
-            />
-            <span class="candidate-copy">
-              <span class="candidate-heading">
-                <strong>{candidate.name}</strong>
-                <span>{projectKindLabel(candidate.kind)}</span>
-              </span>
-              <span class="candidate-meta">
-                <span class="candidate-path" title={candidate.rootPath}>
-                  {reviewSource === 'codex-history' ? candidate.rootPath : candidate.relativePath}
-                </span>
-                <small>
-                  {#if historyEvidence.has(candidate.rootPath)}
-                    {conversationLabel(
-                      historyEvidence.get(candidate.rootPath)?.conversationIds.length ?? 0,
-                    )}
-                  {:else}
-                    {markerLabel(candidate.markers)}
-                  {/if}
-                </small>
-              </span>
+<div class="step-host">
+  {#key step}
+    <div class="step-panel" transition:fade={{ duration: 150 }}>
+      {#if step === 'choose'}
+        <div class="choice-list">
+          <Button
+            variant="ghost"
+            class="app-focus-ring h-auto w-full justify-start whitespace-normal font-normal focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0"
+            onclick={scanHistory}
+          >
+            <span class="choice-icon"><History strokeWidth={1.7} /></span>
+            <span class="choice-copy">
+              <strong>Codex history</strong>
+              <span>Find repositories referenced by your local Codex conversations.</span>
             </span>
-          </label>
-        {/each}
-      </div>
-    </ScrollArea>
+            <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
+          </Button>
+          <Button
+            variant="ghost"
+            class="app-focus-ring h-auto w-full justify-start whitespace-normal font-normal focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0"
+            onclick={() => selectAndScan('collection')}
+          >
+            <span class="choice-icon"><Folders strokeWidth={1.7} /></span>
+            <span class="choice-copy">
+              <strong>Projects folder</strong>
+              <span>Scan a parent folder for repository and workspace roots.</span>
+            </span>
+            <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
+          </Button>
+          <Button
+            variant="ghost"
+            class="app-focus-ring h-auto w-full justify-start whitespace-normal font-normal focus-visible:border-transparent focus-visible:ring-0 active:not-aria-[haspopup]:translate-y-0"
+            onclick={() => selectAndScan('single-project')}
+          >
+            <span class="choice-icon"><FolderGit2 strokeWidth={1.7} /></span>
+            <span class="choice-copy">
+              <strong>Single project</strong>
+              <span>Add one repository or workspace from its root folder.</span>
+            </span>
+            <ChevronRight class="size-4 text-muted-foreground" strokeWidth={1.7} />
+          </Button>
+        </div>
 
-    {#if result.truncated}
-      <p class="scan-warning">
-        Scan limit reached. Choose a smaller parent folder to find the remaining projects.
-      </p>
-    {/if}
+        <p class="boundary-note">
+          Codex discovery reads project paths and conversation IDs, never message content.
+        </p>
+      {:else if step === 'scanning'}
+        <div class="state-view app-state-fill" aria-live="polite">
+          <span class="state-icon scanning"><Search strokeWidth={1.7} /></span>
+          <strong>Looking for project roots</strong>
+          <span>Checking repository and workspace markers.</span>
+        </div>
+      {:else if step === 'registering'}
+        <div class="state-view app-state-fill" aria-live="polite" aria-busy="true">
+          <span class="state-icon scanning"><FolderPlus strokeWidth={1.7} /></span>
+          <strong>Adding projects</strong>
+          <span>Saving the selected repositories to your local workspace.</span>
+        </div>
+      {:else if step === 'error'}
+        <div class="state-view app-state-fill" role="alert">
+          <span class="state-icon error"><TriangleAlert strokeWidth={1.7} /></span>
+          <strong
+            >{errorKind === 'registration'
+              ? 'Could not add projects'
+              : 'Could not scan projects'}</strong
+          >
+          <span>{errorMessage}</span>
+          {#if errorKind === 'registration'}
+            <div class="error-actions">
+              <Button size="sm" onclick={registerProjects}>
+                <RefreshCw data-icon="inline-start" />Retry
+              </Button>
+              <Button variant="ghost" size="sm" onclick={() => (step = 'review')}
+                >Review selection</Button
+              >
+            </div>
+          {:else}
+            <Button variant="outline" size="sm" onclick={reset}>Try another source</Button>
+          {/if}
+        </div>
+      {:else if result}
+        {#if result.candidates.length === 0}
+          <div class="state-view compact app-state-fill">
+            <span class="state-icon"><Search strokeWidth={1.7} /></span>
+            <strong>No projects found</strong>
+            <span>Choose a different folder or add one project directly.</span>
+            <Button variant="outline" size="sm" onclick={reset}>Try another source</Button>
+          </div>
+        {:else}
+          <div class="review-context">
+            <span class="review-source" title={result.selectedRoot}>
+              {#if reviewSource === 'codex-history'}
+                <History strokeWidth={1.7} />
+              {:else}
+                <Folders strokeWidth={1.7} />
+              {/if}
+              <span>{result.selectedRoot}</span>
+            </span>
+            <span
+              >{result.candidates.length}
+              {result.candidates.length === 1 ? 'project' : 'projects'}</span
+            >
+          </div>
 
-    <div class="review-actions">
-      <Button variant="ghost" size="sm" onclick={reset}
-        ><ChevronLeft data-icon="inline-start" />Back</Button
-      >
-      <Button size="sm" disabled={selectedCandidates.length === 0} onclick={registerProjects}>
-        Add {selectedCandidates.length}
-        {selectedCandidates.length === 1 ? 'project' : 'projects'}
-      </Button>
+          <div class="selection-bar">
+            <label>
+              <Checkbox
+                checked={allCandidatesSelected}
+                indeterminate={selectionIsMixed}
+                onCheckedChange={setAllSelected}
+                aria-label="Select all detected projects"
+              />
+              <span>Select all</span>
+            </label>
+            <span>{selectedCandidates.length} selected</span>
+          </div>
+
+          <ScrollArea
+            class="candidate-scroll"
+            style={`height: min(${reviewViewportHeight}px, 42vh);`}
+          >
+            <div class="candidate-list">
+              {#each result.candidates as candidate (candidate.rootPath)}
+                <label class:selected={selectedRoots.has(candidate.rootPath)}>
+                  <Checkbox
+                    checked={selectedRoots.has(candidate.rootPath)}
+                    onCheckedChange={(checked) => setSelected(candidate, checked)}
+                    aria-label={`Add ${candidate.name}`}
+                  />
+                  <span class="candidate-copy">
+                    <span class="candidate-heading">
+                      <strong>{candidate.name}</strong>
+                      <span>{projectKindLabel(candidate.kind)}</span>
+                    </span>
+                    <span class="candidate-meta">
+                      <span class="candidate-path" title={candidate.rootPath}>
+                        {reviewSource === 'codex-history'
+                          ? candidate.rootPath
+                          : candidate.relativePath}
+                      </span>
+                      <small>
+                        {#if historyEvidence.has(candidate.rootPath)}
+                          {conversationLabel(
+                            historyEvidence.get(candidate.rootPath)?.conversationIds.length ?? 0,
+                          )}
+                        {:else}
+                          {markerLabel(candidate.markers)}
+                        {/if}
+                      </small>
+                    </span>
+                  </span>
+                </label>
+              {/each}
+            </div>
+          </ScrollArea>
+
+          {#if result.truncated}
+            <p class="scan-warning">
+              Scan limit reached. Choose a smaller parent folder to find the remaining projects.
+            </p>
+          {/if}
+
+          <div class="review-actions">
+            <Button variant="ghost" size="sm" onclick={reset}
+              ><ChevronLeft data-icon="inline-start" />Back</Button
+            >
+            <Button size="sm" disabled={selectedCandidates.length === 0} onclick={registerProjects}>
+              Add {selectedCandidates.length}
+              {selectedCandidates.length === 1 ? 'project' : 'projects'}
+            </Button>
+          </div>
+        {/if}
+      {/if}
     </div>
-  {/if}
-{/if}
+  {/key}
+</div>
 
 <style>
+  .step-host {
+    display: grid;
+  }
+
+  .step-panel {
+    grid-area: 1 / 1;
+    min-width: 0;
+  }
+
   .choice-list {
     display: grid;
     gap: 8px;
   }
 
-  .choice-list > button {
+  .choice-list > :global(button) {
     display: grid;
     min-height: 72px;
     grid-template-columns: 38px minmax(0, 1fr) 30px;
@@ -350,15 +387,15 @@
     transition: background-color var(--dur-micro) var(--ease-out);
   }
 
-  .choice-list > button:hover {
+  .choice-list > :global(button):hover {
     background: color-mix(in oklab, var(--card) 86%, transparent);
   }
 
-  .choice-list > button:active {
+  .choice-list > :global(button):active {
     background: color-mix(in oklab, var(--card) 96%, transparent);
   }
 
-  .choice-list > button > :global(svg) {
+  .choice-list > :global(button) > :global(svg) {
     width: 14px;
     height: 14px;
     justify-self: center;
@@ -551,6 +588,11 @@
     box-shadow:
       var(--item-shadow),
       0 0 0 2px color-mix(in oklab, var(--ring) 22%, transparent);
+  }
+
+  .candidate-list label:focus-within:has(:global(:focus-visible)) {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
   }
 
   .candidate-copy {

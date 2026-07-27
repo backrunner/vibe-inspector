@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, type Component } from 'svelte';
+  import * as Tooltip from '$lib/components/ui/tooltip';
   import WindowTitlebar from '$components/shell/WindowTitlebar.svelte';
   import AppShellSkeleton from '$components/shell/AppShellSkeleton.svelte';
   import ProjectOnboarding from '$components/projects/ProjectOnboarding.svelte';
@@ -109,24 +110,26 @@
 </svelte:head>
 
 <div class="window-frame">
-  <WindowTitlebar />
-  <div class="app-shell">
-    {#if !store.workspaceHydrated}
-      <AppShellSkeleton />
-    {:else if store.workspaceError}
-      <WorkspaceRestoreError />
-    {:else if store.needsOnboarding}
-      <ProjectOnboarding />
-    {:else if RegisteredWorkspace}
-      <RegisteredWorkspace />
-    {:else}
-      <AppShellSkeleton />
-    {/if}
-  </div>
-  {#if ProjectPickerDialog}<ProjectPickerDialog />{/if}
-  {#if ActivityDialog}<ActivityDialog />{/if}
-  {#if SettingsDialog}<SettingsDialog />{/if}
-  {#if ShortcutsDialog}<ShortcutsDialog />{/if}
+  <Tooltip.Provider delayDuration={400}>
+    <WindowTitlebar />
+    <div class="app-shell">
+      {#if !store.workspaceHydrated}
+        <AppShellSkeleton />
+      {:else if store.workspaceError}
+        <WorkspaceRestoreError />
+      {:else if store.needsOnboarding}
+        <ProjectOnboarding />
+      {:else if RegisteredWorkspace}
+        <RegisteredWorkspace />
+      {:else}
+        <AppShellSkeleton />
+      {/if}
+    </div>
+    {#if ProjectPickerDialog}<ProjectPickerDialog />{/if}
+    {#if ActivityDialog}<ActivityDialog />{/if}
+    {#if SettingsDialog}<SettingsDialog />{/if}
+    {#if ShortcutsDialog}<ShortcutsDialog />{/if}
+  </Tooltip.Provider>
 </div>
 
 <style>

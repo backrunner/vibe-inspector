@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { fade } from 'svelte/transition';
   import { Check, ChevronRight, FolderGit2, Lightbulb, TriangleAlert } from '@lucide/svelte';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
   import * as SegmentedControl from '$lib/components/ui/segmented-control';
@@ -13,6 +14,20 @@
   const flow = $derived(store.selectedFlow);
   const sourceRef = $derived(store.selectedSourceRef);
   let overviewPanel = $state<'flow' | 'rationale'>('flow');
+
+  // Keyed only on the top-level view state, never on the selected flow id, so
+  // switching flows updates props in place instead of remounting FlowGraph/CodeViewer.
+  const viewStateKey = $derived(
+    flow
+      ? 'content'
+      : store.selectedProject
+        ? store.inspectorStatus === 'loading'
+          ? 'loading'
+          : store.inspectorStatus === 'error'
+            ? 'error'
+            : 'no-data'
+        : 'no-selection',
+  );
 
   function formatSource(source: string): string {
     return source
@@ -32,185 +47,208 @@
 </script>
 
 <main
-  class="inspector-workspace flex min-w-0 flex-1 flex-col overflow-hidden"
+  class="inspector-workspace grid min-w-0 flex-1 overflow-hidden"
   aria-label="Inspector workspace"
 >
-  {#if flow}
-    <div class="workspace-content">
-      <section class="flow-heading">
-        <div class="min-w-0">
-          <div class="flow-context">
-            <span class="truncate">{store.selectedProject?.name ?? 'No project'}</span>
-            <ChevronRight class="size-3 shrink-0" />
-            <strong class="truncate">{store.selectedModule?.name ?? 'No module'}</strong>
-          </div>
-          <h1>{flow.name}</h1>
-          <p>{flow.summary}</p>
-        </div>
-      </section>
-
-      <section class="overview-section" data-panel={overviewPanel} aria-label="Flow overview">
-        <SegmentedControl.Root class="overview-toggle" aria-label="Flow overview panel">
-          <SegmentedControl.Item
-            class="min-w-[72px]"
-            selected={overviewPanel === 'flow'}
-            onclick={() => (overviewPanel = 'flow')}>Flow</SegmentedControl.Item
-          >
-          <SegmentedControl.Item
-            class="min-w-[72px]"
-            selected={overviewPanel === 'rationale'}
-            onclick={() => (overviewPanel = 'rationale')}>Rationale</SegmentedControl.Item
-          >
-        </SegmentedControl.Root>
-
-        <div class="flow-panel">
-          <FlowGraph {flow} theme={store.theme} />
-        </div>
-
-        <aside class="rationale" aria-label="Design rationale">
-          <header>
-            <span class="rationale-icon"><Lightbulb class="size-3.5" strokeWidth={1.8} /></span>
-            <div>
-              <strong>Design rationale</strong>
-              <span
-                >{flow.explanation
-                  ? `${Math.round(flow.explanation.confidence * 100)}% confidence`
-                  : 'Not documented'}</span
-              >
+  {#key viewStateKey}
+    {#if flow}
+      <div class="workspace-content" transition:fade={{ duration: 150 }}>
+        <section class="flow-heading">
+          <div class="min-w-0">
+            <div class="flow-context">
+              <span class="truncate">{store.selectedProject?.name ?? 'No project'}</span>
+              <ChevronRight class="size-3 shrink-0" />
+              <strong class="truncate">{store.selectedModule?.name ?? 'No module'}</strong>
             </div>
-          </header>
-          <ScrollArea
-            class="min-h-0 flex-1"
-            viewportProps={{
-              tabindex: 0,
-              role: 'region',
-              'aria-label': 'Design rationale details',
-            }}
-          >
-            {#if flow.explanation}
-              <div class="rationale-content">
-                <h2>{flow.explanation.headline}</h2>
-                <p>{flow.explanation.body}</p>
-                {#if flow.explanation.decisions.length > 0}
-                  <div class="decisions">
-                    <strong>Key decisions</strong>
-                    {#each flow.explanation.decisions as decision}
-                      <div>
-                        <Check class="decision-check" strokeWidth={2} /><span>{decision}</span>
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-                <dl class="provenance">
-                  <div>
-                    <dt>Source</dt>
-                    <dd>{formatSource(flow.explanation.provenance.source)}</dd>
-                  </div>
-                  {#if flow.explanation.provenance.model}
-                    <div>
-                      <dt>Model</dt>
-                      <dd>{flow.explanation.provenance.model}</dd>
+            <h1>{flow.name}</h1>
+            <p>{flow.summary}</p>
+          </div>
+        </section>
+
+        <section class="overview-section" data-panel={overviewPanel} aria-label="Flow overview">
+          <SegmentedControl.Root class="overview-toggle" aria-label="Flow overview panel">
+            <SegmentedControl.Item
+              class="min-w-[72px]"
+              selected={overviewPanel === 'flow'}
+              onclick={() => (overviewPanel = 'flow')}>Flow</SegmentedControl.Item
+            >
+            <SegmentedControl.Item
+              class="min-w-[72px]"
+              selected={overviewPanel === 'rationale'}
+              onclick={() => (overviewPanel = 'rationale')}>Rationale</SegmentedControl.Item
+            >
+          </SegmentedControl.Root>
+
+          <div class="flow-panel">
+            <FlowGraph {flow} theme={store.theme} />
+          </div>
+
+          <aside class="rationale" aria-label="Design rationale">
+            <header>
+              <span class="rationale-icon"><Lightbulb class="size-3.5" strokeWidth={1.8} /></span>
+              <div>
+                <strong>Design rationale</strong>
+                <span
+                  >{flow.explanation
+                    ? `${Math.round(flow.explanation.confidence * 100)}% confidence`
+                    : 'Not documented'}</span
+                >
+              </div>
+            </header>
+            <ScrollArea
+              class="min-h-0 flex-1"
+              viewportProps={{
+                tabindex: 0,
+                role: 'region',
+                'aria-label': 'Design rationale details',
+              }}
+            >
+              {#if flow.explanation}
+                <div class="rationale-content">
+                  <h2>{flow.explanation.headline}</h2>
+                  <p>{flow.explanation.body}</p>
+                  {#if flow.explanation.decisions.length > 0}
+                    <div class="decisions">
+                      <strong>Key decisions</strong>
+                      {#each flow.explanation.decisions as decision}
+                        <div>
+                          <Check class="decision-check" strokeWidth={2} /><span>{decision}</span>
+                        </div>
+                      {/each}
                     </div>
                   {/if}
-                  <div>
-                    <dt>Generated</dt>
-                    <dd>{formatGeneratedAt(flow.explanation.provenance.generatedAt)}</dd>
-                  </div>
-                  <div>
-                    <dt>Evidence</dt>
-                    <dd>{flow.explanation.provenance.evidenceIds.length} references</dd>
-                  </div>
-                </dl>
-              </div>
-            {:else}
-              <div class="rationale-empty app-state-fill">
-                The agent has not recorded a design rationale for this flow yet.
-              </div>
-            {/if}
-          </ScrollArea>
-        </aside>
-      </section>
+                  <dl class="provenance">
+                    <div>
+                      <dt>Source</dt>
+                      <dd>{formatSource(flow.explanation.provenance.source)}</dd>
+                    </div>
+                    {#if flow.explanation.provenance.model}
+                      <div>
+                        <dt>Model</dt>
+                        <dd>{flow.explanation.provenance.model}</dd>
+                      </div>
+                    {/if}
+                    <div>
+                      <dt>Generated</dt>
+                      <dd>{formatGeneratedAt(flow.explanation.provenance.generatedAt)}</dd>
+                    </div>
+                    <div>
+                      <dt>Evidence</dt>
+                      <dd>{flow.explanation.provenance.evidenceIds.length} references</dd>
+                    </div>
+                  </dl>
+                </div>
+              {:else}
+                <div class="rationale-empty app-state-fill">
+                  The agent has not recorded a design rationale for this flow yet.
+                </div>
+              {/if}
+            </ScrollArea>
+          </aside>
+        </section>
 
-      <section class="source-section" aria-label="Source evidence">
-        <header class="source-heading">
-          <div>
-            <strong>Source evidence</strong>
-            <span>Read-only files associated with this flow</span>
+        <section class="source-section" aria-label="Source evidence">
+          <header class="source-heading">
+            <div>
+              <strong>Source evidence</strong>
+              <span>Read-only files associated with this flow</span>
+            </div>
+            <span class="source-count"
+              >{flow.sourceRefs.length}
+              {flow.sourceRefs.length === 1 ? 'reference' : 'references'}{store.relatedSourceRefs
+                .length
+                ? ` · ${store.relatedSourceRefs.length} related`
+                : ''}</span
+            >
+          </header>
+
+          <div class="source-grid">
+            <SourceFileTree
+              sourceRefs={store.visibleSourceRefs}
+              selectedRefId={store.selectedSourceRefId}
+              onselect={(refId) => store.selectSourceRef(refId)}
+            />
+
+            <div class="min-w-0 min-h-0">
+              {#if sourceRef && store.sourceStatus === 'ready'}
+                <CodeViewer
+                  file={sourceRef}
+                  code={store.sourceCode}
+                  codeStartLine={store.sourceStartLine}
+                  readStatus={store.sourceReadStatus}
+                  theme={store.theme}
+                  embedded
+                />
+              {:else if sourceRef && store.sourceStatus === 'loading'}
+                <SourceViewerSkeleton />
+              {:else if sourceRef && store.sourceStatus === 'error'}
+                <div class="source-state source-error app-state-fill">
+                  <TriangleAlert aria-hidden="true" />
+                  <div><strong>Source unavailable</strong><span>{store.sourceError}</span></div>
+                </div>
+              {:else}
+                <div class="source-state app-state-fill">No source selected</div>
+              {/if}
+            </div>
           </div>
-          <span class="source-count"
-            >{flow.sourceRefs.length}
-            {flow.sourceRefs.length === 1 ? 'reference' : 'references'}{store.relatedSourceRefs
-              .length
-              ? ` · ${store.relatedSourceRefs.length} related`
-              : ''}</span
-          >
-        </header>
-
-        <div class="source-grid">
-          <SourceFileTree
-            sourceRefs={store.visibleSourceRefs}
-            selectedRefId={store.selectedSourceRefId}
-            onselect={(refId) => store.selectSourceRef(refId)}
-          />
-
-          <div class="min-w-0 min-h-0">
-            {#if sourceRef && store.sourceStatus === 'ready'}
-              <CodeViewer
-                file={sourceRef}
-                code={store.sourceCode}
-                codeStartLine={store.sourceStartLine}
-                readStatus={store.sourceReadStatus}
-                theme={store.theme}
-                embedded
-              />
-            {:else if sourceRef && store.sourceStatus === 'loading'}
-              <SourceViewerSkeleton />
-            {:else if sourceRef && store.sourceStatus === 'error'}
-              <div class="source-state source-error app-state-fill">
-                <TriangleAlert aria-hidden="true" />
-                <div><strong>Source unavailable</strong><span>{store.sourceError}</span></div>
-              </div>
-            {:else}
-              <div class="source-state app-state-fill">No source selected</div>
-            {/if}
-          </div>
-        </div>
-      </section>
-    </div>
-  {:else if store.selectedProject && store.inspectorStatus === 'loading'}
-    <InspectorSkeleton />
-  {:else if store.selectedProject && store.inspectorStatus === 'error'}
-    <div class="empty-inspector app-state-fill">
-      <span><TriangleAlert strokeWidth={1.7} /></span>
-      <strong>{store.selectedProject.name}</strong>
-      <h1>Inspector data unavailable</h1>
-      <p>{store.inspectorError}</p>
-    </div>
-  {:else if store.selectedProject}
-    <div class="empty-inspector app-state-fill">
-      <span><FolderGit2 strokeWidth={1.7} /></span>
-      <strong>{store.selectedProject.name}</strong>
-      <h1>No inspector data yet</h1>
-      <p>
-        Run <code>$inspector-init</code> from Codex for this project, then return here to inspect the
-        result.
-      </p>
-    </div>
-  {:else}
-    <div class="empty-inspector app-state-fill empty-inspector-quiet">
-      <span><FolderGit2 strokeWidth={1.7} /></span>
-      <h1>Select a project</h1>
-      <p>Choose a registered project from the Projects rail to inspect its architecture.</p>
-    </div>
-  {/if}
+        </section>
+      </div>
+    {:else if store.selectedProject && store.inspectorStatus === 'loading'}
+      <div class="skeleton-pane" transition:fade={{ duration: 150 }}>
+        <InspectorSkeleton />
+      </div>
+    {:else if store.selectedProject && store.inspectorStatus === 'error'}
+      <div class="empty-inspector app-state-fill" transition:fade={{ duration: 150 }}>
+        <span><TriangleAlert strokeWidth={1.7} /></span>
+        <strong>{store.selectedProject.name}</strong>
+        <h1>Inspector data unavailable</h1>
+        <p>{store.inspectorError}</p>
+      </div>
+    {:else if store.selectedProject}
+      <div class="empty-inspector app-state-fill" transition:fade={{ duration: 150 }}>
+        <span><FolderGit2 strokeWidth={1.7} /></span>
+        <strong>{store.selectedProject.name}</strong>
+        <h1>No inspector data yet</h1>
+        <p>
+          Run <code>$inspector-init</code> from Codex for this project, then return here to inspect the
+          result.
+        </p>
+      </div>
+    {:else}
+      <div
+        class="empty-inspector app-state-fill empty-inspector-quiet"
+        transition:fade={{ duration: 150 }}
+      >
+        <span><FolderGit2 strokeWidth={1.7} /></span>
+        <h1>Select a project</h1>
+        <p>Choose a registered project from the Projects rail to inspect its architecture.</p>
+      </div>
+    {/if}
+  {/key}
 </main>
 
 <style>
   .inspector-workspace {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     border: 1px solid var(--panel-edge);
     border-radius: var(--radius-xl);
     background: var(--workspace-panel-surface);
     box-shadow: var(--panel-shadow);
+  }
+
+  /* Outgoing and incoming state panes share one grid cell, so the cross-fade
+     overlaps instead of reflowing the workspace. */
+  .inspector-workspace > * {
+    grid-area: 1 / 1;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .skeleton-pane {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
   }
 
   .workspace-content {

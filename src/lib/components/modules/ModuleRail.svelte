@@ -16,7 +16,7 @@
   aria-label="Modules"
 >
   {#if store.moduleRailCollapsed}
-    <div class="rail-mode rail-mode-collapsed">
+    <div class="rail-mode rail-mode-collapsed rail-content">
       <div class="rail-header grid h-11 shrink-0 place-items-center text-muted-foreground">
         <IconButton
           label="Expand module rail"
@@ -31,7 +31,7 @@
       />
     </div>
   {:else}
-    <div class="rail-mode rail-mode-expanded">
+    <div class="rail-mode rail-mode-expanded rail-content">
       <header class="rail-header architecture-header">
         <div class="architecture-title">
           <strong>Architecture</strong><span>{store.selectedProject?.name ?? 'No project'}</span>
@@ -48,7 +48,7 @@
       </div>
 
       <div
-        class="flex items-center justify-between px-4 pt-1 pb-2 text-[11px] text-muted-foreground"
+        class="flex items-center justify-between px-4 pt-1 pb-2 text-caption text-muted-foreground"
       >
         <span>Modules</span>
         <span class="font-mono">{totalFlowCount} {totalFlowCount === 1 ? 'flow' : 'flows'}</span>
@@ -129,7 +129,6 @@
     min-width: 280px;
     height: 100%;
     flex-direction: column;
-    animation: rail-content-in var(--dur-rail) var(--ease-out) both;
   }
 
   .rail-mode-collapsed {
@@ -137,27 +136,10 @@
     min-width: 48px;
   }
 
-  @keyframes rail-content-in {
-    from {
-      opacity: 0;
-      transform: translateX(-6px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-
   @media (max-width: 1200px) {
     .rail-mode-expanded {
       width: 252px;
       min-width: 252px;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .rail-mode {
-      animation: none;
     }
   }
 </style>

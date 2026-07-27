@@ -2,6 +2,8 @@
   import { FolderPlus, PanelLeftClose, PanelLeftOpen, SearchX } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
+  import * as Tooltip from '$lib/components/ui/tooltip';
+  import { cn } from '$lib/utils.js';
   import GlassSearchField from '$components/GlassSearchField.svelte';
   import IconButton from '$components/IconButton.svelte';
   import { inspectorStore } from '$stores/inspector.svelte';
@@ -24,7 +26,7 @@
   aria-label="Projects"
 >
   {#if store.projectRailCollapsed}
-    <div class="rail-mode rail-mode-collapsed">
+    <div class="rail-mode rail-mode-collapsed rail-content">
       <div class="rail-header grid h-11 shrink-0 place-items-center">
         <IconButton
           label="Expand project rail"
@@ -34,21 +36,34 @@
       </div>
       <div class="grid justify-items-center gap-2 py-3">
         {#each store.projects as project}
-          <button
-            class:active={project.id === store.selectedProjectId}
-            class="project-avatar app-focus-ring grid size-8 place-items-center rounded-md border border-transparent font-mono text-[9px] font-semibold transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)]"
-            aria-label={`Open ${project.name}`}
-            title={project.name}
-            onclick={() => store.selectProject(project.id)}
-            >{project.name.slice(0, 2).toUpperCase()}</button
-          >
+          <Tooltip.Root>
+            <Tooltip.Trigger>
+              {#snippet child({ props })}
+                <Button
+                  {...props}
+                  variant="ghost"
+                  size="icon"
+                  class={cn(
+                    'project-avatar app-focus-ring grid place-items-center rounded-md border border-transparent font-mono text-meta font-semibold transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)] focus-visible:border-transparent focus-visible:ring-0',
+                    project.id === store.selectedProjectId && 'active',
+                  )}
+                  aria-label={`Open ${project.name}`}
+                  onclick={() => store.selectProject(project.id)}
+                  >{project.name.slice(0, 2).toUpperCase()}</Button
+                >
+              {/snippet}
+            </Tooltip.Trigger>
+            <Tooltip.Content side="right" sideOffset={4}>
+              <span class="text-caption">{project.name}</span>
+            </Tooltip.Content>
+          </Tooltip.Root>
         {/each}
       </div>
     </div>
   {:else}
-    <div class="rail-mode rail-mode-expanded">
+    <div class="rail-mode rail-mode-expanded rail-content">
       <div class="rail-header flex h-11 shrink-0 items-center justify-between px-2 pl-4">
-        <span class="text-[13px] font-semibold">Projects</span>
+        <span class="text-body font-semibold">Projects</span>
         <div class="flex items-center">
           <IconButton
             label="Collapse project rail"
@@ -80,19 +95,22 @@
             </div>
           {:else}
             {#each filteredProjects as project}
-              <button
-                class:active={project.id === store.selectedProjectId}
-                class="project-row app-focus-ring group flex min-w-0 items-center rounded-md border border-transparent px-2 py-2.5 text-left transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)] hover:bg-sidebar-accent"
+              <Button
+                variant="ghost"
+                class={cn(
+                  'project-row app-focus-ring group flex h-auto min-w-0 items-center rounded-md border border-transparent px-2 py-2.5 text-left font-normal transition-[color,background-color,border-color] duration-[var(--dur-micro)] ease-[var(--ease-out)] hover:bg-sidebar-accent focus-visible:border-transparent focus-visible:ring-0',
+                  project.id === store.selectedProjectId && 'active',
+                )}
                 aria-current={project.id === store.selectedProjectId ? 'page' : undefined}
                 onclick={() => store.selectProject(project.id)}
               >
                 <span class="grid min-w-0 flex-1 gap-0.5"
-                  ><strong class="truncate text-[13px] font-medium">{project.name}</strong><small
-                    class="truncate font-mono text-[10.5px] text-muted-foreground"
+                  ><strong class="truncate text-body font-medium">{project.name}</strong><small
+                    class="truncate font-mono text-meta text-muted-foreground"
                     >{project.branch} · {project.lastScanAt}</small
                   ></span
                 >
-              </button>
+              </Button>
             {/each}
           {/if}
         </div>
@@ -135,7 +153,6 @@
     min-width: 216px;
     height: 100%;
     flex-direction: column;
-    animation: rail-content-in var(--dur-rail) var(--ease-out) both;
   }
 
   .rail-mode-collapsed {
@@ -144,36 +161,26 @@
     align-items: center;
   }
 
-  @keyframes rail-content-in {
-    from {
-      opacity: 0;
-      transform: translateX(-6px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
-  .project-row.active {
+  :global(.project-row.active) {
     border-color: var(--sidebar-border);
     background: var(--sidebar-accent);
     box-shadow: var(--selected-shadow);
   }
-  .project-avatar.active {
+  :global(.project-avatar.active) {
     border-color: var(--ring);
     background: var(--sidebar-accent);
     box-shadow: var(--selected-shadow);
   }
-  .project-avatar,
-  .project-row {
+  :global(.project-avatar),
+  :global(.project-row) {
     --app-focus-ring-offset: -3px;
   }
-  .project-avatar {
+  :global(.project-avatar) {
     color: color-mix(in oklab, var(--foreground) 78%, transparent);
     background: color-mix(in oklab, var(--muted) 84%, var(--sidebar));
     box-shadow: var(--control-shadow);
   }
-  .project-avatar:hover {
+  :global(.project-avatar:hover) {
     background: color-mix(in oklab, var(--sidebar-accent) 90%, var(--foreground) 10%);
   }
 
@@ -213,12 +220,6 @@
     .rail-mode-expanded {
       width: 196px;
       min-width: 196px;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .rail-mode {
-      animation: none;
     }
   }
 </style>

@@ -20,8 +20,8 @@
 <Dialog.Root bind:open={store.settingsOpen}>
   <Dialog.Content class="settings-dialog gap-0 overflow-hidden p-0 sm:max-w-[620px]">
     <Dialog.Header class="border-b px-5 py-4 text-left">
-      <Dialog.Title class="text-[15px]">Settings</Dialog.Title>
-      <Dialog.Description class="text-[12px]">
+      <Dialog.Title class="text-heading">Settings</Dialog.Title>
+      <Dialog.Description class="text-rail">
         Appearance and local background services
       </Dialog.Description>
     </Dialog.Header>
@@ -258,6 +258,11 @@
     margin-top: 15px;
     padding-top: 15px;
     border-top: 1px solid var(--border);
+  }
+
+  .login-setting:focus-within:has(:global(:focus-visible)) {
+    outline: 3px solid var(--ring);
+    outline-offset: 2px;
   }
 
   .login-setting.disabled {

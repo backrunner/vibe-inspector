@@ -23,7 +23,7 @@
     bind:value
     {placeholder}
     aria-label={ariaLabel ?? placeholder}
-    class="h-8 border-0 bg-transparent pr-3 pl-8 text-[13px] [box-shadow:none] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
+    class="h-8 border-0 bg-transparent pr-3 pl-8 text-body [box-shadow:none] focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
   />
 </LiquidGlassSurface>
 
