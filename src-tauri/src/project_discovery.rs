@@ -389,7 +389,8 @@ fn json_manifest_name(path: &Path) -> Option<String> {
 }
 
 fn toml_manifest(path: &Path) -> Option<toml::Value> {
-    read_small_text(path)?.parse::<toml::Value>().ok()
+    // toml 1.x: the `FromStr` impl on `Value` rejects valid documents, use `toml::from_str`.
+    toml::from_str(&read_small_text(path)?).ok()
 }
 
 fn go_module_name(path: &Path) -> Option<String> {

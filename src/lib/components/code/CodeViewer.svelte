@@ -1,8 +1,9 @@
 <script lang="ts">
   import { Check, Copy, FileCode2, LockKeyhole, TriangleAlert } from '@lucide/svelte';
   import { onDestroy, onMount } from 'svelte';
-  import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
-  import JsonWorker from 'monaco-editor/esm/vs/language/json/json.worker?worker';
+  import IconButton from '$components/IconButton.svelte';
+  import EditorWorker from 'monaco-editor/editor/editor.worker?worker';
+  import JsonWorker from 'monaco-editor/languages/features/json/json.worker?worker';
   import type { SourceRef } from '$domain/entities';
   import {
     isEditorWriteShortcut,
@@ -29,7 +30,7 @@
   let container = $state<HTMLDivElement>();
   let cardElement = $state<HTMLElement>();
   let editor: import('monaco-editor').editor.IStandaloneCodeEditor | undefined;
-  let monaco: typeof import('monaco-editor/esm/vs/editor/editor.api') | undefined;
+  let monaco: typeof import('monaco-editor/editor/editor.api') | undefined;
   let loading = $state(true);
   let loadError = $state('');
   let copied = $state(false);
@@ -148,7 +149,7 @@
         getWorker: (_moduleId, label) => (label === 'json' ? new JsonWorker() : new EditorWorker()),
       };
       await loadEditorLanguage(file.path);
-      monaco = await import('monaco-editor/esm/vs/editor/editor.api');
+      monaco = await import('monaco-editor/editor/editor.api');
       defineEditorTheme(monaco, theme);
       if (!container) return;
       editor = monaco.editor.create(
@@ -213,10 +214,11 @@
     </div>
     <div class="code-meta">
       <span>{lineCount} total lines</span>
-      <button class="copy-path app-focus-ring" onclick={copyPath} aria-label="Copy source path">
-        {#if copied}<Check aria-hidden="true" />{:else}<Copy aria-hidden="true" />{/if}
-        {copied ? 'Copied' : 'Copy path'}
-      </button>
+      <IconButton
+        label={copied ? 'Copied' : 'Copy path'}
+        icon={copied ? Check : Copy}
+        onclick={copyPath}
+      />
     </div>
   </header>
   <div class="editor-shell">
@@ -328,8 +330,7 @@
 
   .file-heading,
   .code-meta,
-  .readonly-lock,
-  .copy-path {
+  .readonly-lock {
     display: flex;
     align-items: center;
   }
@@ -396,37 +397,8 @@
     color: var(--muted-foreground);
   }
 
-  .readonly-lock :global(svg),
-  .copy-path :global(svg) {
+  .readonly-lock :global(svg) {
     width: 11px;
-  }
-
-  .copy-path {
-    --app-focus-ring-offset: -3px;
-
-    gap: 5px;
-    padding: 4px 5px 4px 7px;
-    border: 0;
-    border-radius: var(--radius-compact);
-    color: var(--muted-foreground);
-    background: transparent;
-    cursor: pointer;
-    white-space: nowrap;
-  }
-
-  .copy-path:hover {
-    color: var(--foreground);
-  }
-
-  .copy-path:active {
-    color: var(--foreground);
-    background: color-mix(in oklab, var(--muted) 56%, transparent);
-  }
-
-  .copy-path:disabled {
-    color: var(--muted-foreground);
-    cursor: not-allowed;
-    opacity: 0.55;
   }
 
   .editor-shell {

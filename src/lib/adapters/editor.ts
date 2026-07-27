@@ -1,4 +1,4 @@
-import type { editor } from 'monaco-editor/esm/vs/editor/editor.api';
+import type { editor } from 'monaco-editor/editor';
 
 export type EditorLanguage =
   | 'cpp'
@@ -129,37 +129,34 @@ export async function loadEditorLanguage(path: string): Promise<EditorLanguage> 
 }
 
 const languageLoaders: Partial<Record<EditorLanguage, () => Promise<unknown>>> = {
-  cpp: () => import('monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution'),
-  csharp: () => import('monaco-editor/esm/vs/basic-languages/csharp/csharp.contribution'),
-  css: () => import('monaco-editor/esm/vs/basic-languages/css/css.contribution'),
-  dart: () => import('monaco-editor/esm/vs/basic-languages/dart/dart.contribution'),
-  dockerfile: () =>
-    import('monaco-editor/esm/vs/basic-languages/dockerfile/dockerfile.contribution'),
-  go: () => import('monaco-editor/esm/vs/basic-languages/go/go.contribution'),
-  graphql: () => import('monaco-editor/esm/vs/basic-languages/graphql/graphql.contribution'),
-  html: () => import('monaco-editor/esm/vs/basic-languages/html/html.contribution'),
-  ini: () => import('monaco-editor/esm/vs/basic-languages/ini/ini.contribution'),
-  java: () => import('monaco-editor/esm/vs/basic-languages/java/java.contribution'),
-  javascript: () =>
-    import('monaco-editor/esm/vs/basic-languages/javascript/javascript.contribution'),
-  json: () => import('monaco-editor/esm/vs/language/json/monaco.contribution'),
-  kotlin: () => import('monaco-editor/esm/vs/basic-languages/kotlin/kotlin.contribution'),
-  less: () => import('monaco-editor/esm/vs/basic-languages/less/less.contribution'),
-  lua: () => import('monaco-editor/esm/vs/basic-languages/lua/lua.contribution'),
-  markdown: () => import('monaco-editor/esm/vs/basic-languages/markdown/markdown.contribution'),
-  php: () => import('monaco-editor/esm/vs/basic-languages/php/php.contribution'),
-  protobuf: () => import('monaco-editor/esm/vs/basic-languages/protobuf/protobuf.contribution'),
-  python: () => import('monaco-editor/esm/vs/basic-languages/python/python.contribution'),
-  ruby: () => import('monaco-editor/esm/vs/basic-languages/ruby/ruby.contribution'),
-  rust: () => import('monaco-editor/esm/vs/basic-languages/rust/rust.contribution'),
-  scss: () => import('monaco-editor/esm/vs/basic-languages/scss/scss.contribution'),
-  shell: () => import('monaco-editor/esm/vs/basic-languages/shell/shell.contribution'),
-  sql: () => import('monaco-editor/esm/vs/basic-languages/sql/sql.contribution'),
-  swift: () => import('monaco-editor/esm/vs/basic-languages/swift/swift.contribution'),
-  typescript: () =>
-    import('monaco-editor/esm/vs/basic-languages/typescript/typescript.contribution'),
-  xml: () => import('monaco-editor/esm/vs/basic-languages/xml/xml.contribution'),
-  yaml: () => import('monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution'),
+  cpp: () => import('monaco-editor/languages/definitions/cpp/register'),
+  csharp: () => import('monaco-editor/languages/definitions/csharp/register'),
+  css: () => import('monaco-editor/languages/definitions/css/register'),
+  dart: () => import('monaco-editor/languages/definitions/dart/register'),
+  dockerfile: () => import('monaco-editor/languages/definitions/dockerfile/register'),
+  go: () => import('monaco-editor/languages/definitions/go/register'),
+  graphql: () => import('monaco-editor/languages/definitions/graphql/register'),
+  html: () => import('monaco-editor/languages/definitions/html/register'),
+  ini: () => import('monaco-editor/languages/definitions/ini/register'),
+  java: () => import('monaco-editor/languages/definitions/java/register'),
+  javascript: () => import('monaco-editor/languages/definitions/javascript/register'),
+  json: () => import('monaco-editor/languages/features/json/register'),
+  kotlin: () => import('monaco-editor/languages/definitions/kotlin/register'),
+  less: () => import('monaco-editor/languages/definitions/less/register'),
+  lua: () => import('monaco-editor/languages/definitions/lua/register'),
+  markdown: () => import('monaco-editor/languages/definitions/markdown/register'),
+  php: () => import('monaco-editor/languages/definitions/php/register'),
+  protobuf: () => import('monaco-editor/languages/definitions/protobuf/register'),
+  python: () => import('monaco-editor/languages/definitions/python/register'),
+  ruby: () => import('monaco-editor/languages/definitions/ruby/register'),
+  rust: () => import('monaco-editor/languages/definitions/rust/register'),
+  scss: () => import('monaco-editor/languages/definitions/scss/register'),
+  shell: () => import('monaco-editor/languages/definitions/shell/register'),
+  sql: () => import('monaco-editor/languages/definitions/sql/register'),
+  swift: () => import('monaco-editor/languages/definitions/swift/register'),
+  typescript: () => import('monaco-editor/languages/definitions/typescript/register'),
+  xml: () => import('monaco-editor/languages/definitions/xml/register'),
+  yaml: () => import('monaco-editor/languages/definitions/yaml/register'),
 };
 
 export function isEditorWriteShortcut(

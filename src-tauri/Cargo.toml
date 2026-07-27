@@ -4,17 +4,18 @@ version = "0.1.0"
 description = "Local-first repository observability workbench"
 authors = ["VibeInspector"]
 edition = "2021"
+default-run = "vibe-inspector"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
 axum = "0.8.9"
-getrandom = "0.3.4"
+getrandom = "0.4.3"
 libc = "0.2"
 rusqlite = { version = "0.40.1", features = ["backup", "bundled"] }
 rmcp = { version = "2.2.0", features = ["transport-io", "transport-streamable-http-server"] }
-schemars = "1.2.1"
+schemars = "1.2.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.11.0"
@@ -23,11 +24,11 @@ tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
 tao = "0.35.3"
 thiserror = "2"
-tokio = { version = "1.52.3", features = ["fs", "io-std", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
-tokio-util = "0.7.18"
-toml = "0.8"
-tray-icon = { version = "0.24.1", default-features = false }
-uuid = { version = "1.23", features = ["serde", "v7"] }
+tokio = { version = "1.53.1", features = ["fs", "io-std", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = "0.7.19"
+toml = "1.1"
+tray-icon = { version = "0.24.2", default-features = false }
+uuid = { version = "1.24", features = ["serde", "v7"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
