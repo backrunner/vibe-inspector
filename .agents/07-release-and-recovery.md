@@ -19,7 +19,7 @@ pnpm run check:bundle-budget
 cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
 cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 cargo test --manifest-path src-tauri/Cargo.toml
-pnpm tauri build --bundles app --ci
+pnpm exec tauri build --bundles app --ci
 ```
 
 With the tray running, `pnpm run verify:tray` must report tray/MCP online, an unauthenticated 401, initialize 200, and 21 tools.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.10.0",
+  "packageManager": "pnpm@11.11.0",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
@@ -17,7 +17,7 @@
     "prepare:tray:dev": "node scripts/prepare-tray.mjs",
     "prepare:tray:release": "node scripts/prepare-tray.mjs --release",
     "verify:tray": "node scripts/verify-tray.mjs",
-    "tauri": "tauri"
+    "dev:tauri": "tauri dev"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

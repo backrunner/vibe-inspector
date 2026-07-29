@@ -67,7 +67,7 @@ Install dependencies and launch the native desktop flow:
 
 ```bash
 pnpm install
-pnpm tauri dev
+pnpm run dev:tauri
 ```
 
 For browser-only UI work, run:
