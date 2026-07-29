@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { ChevronDown, ChevronRight, Package, SearchX, Workflow } from '@lucide/svelte';
+  import { ChevronDown, ChevronRight, Boxes, Package, SearchX, Workflow } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
   import { cn } from '$lib/utils.js';
   import { inspectorStore } from '$stores/inspector.svelte';
@@ -108,7 +108,13 @@
 >
   {#if rows.length === 0}
     <div class="module-empty app-state-fill">
-      <SearchX class="size-4" strokeWidth={1.7} aria-hidden="true" />
+      <span class="app-state-icon">
+        {#if store.searchQuery.trim()}
+          <SearchX strokeWidth={1.7} aria-hidden="true" />
+        {:else}
+          <Boxes strokeWidth={1.7} aria-hidden="true" />
+        {/if}
+      </span>
       <strong>{store.searchQuery.trim() ? 'No matching modules' : 'No modules available'}</strong>
       <span
         >{store.searchQuery.trim()
@@ -202,7 +208,7 @@
     gap: 2px;
     height: 100%;
     min-height: 0;
-    padding: 0 8px 16px;
+    padding: 2px 12px 12px;
   }
 
   .tree.empty {
@@ -217,6 +223,10 @@
     padding-bottom: calc(var(--state-padding) + var(--module-empty-chrome-offset, 0px));
     color: var(--muted-foreground);
     font-size: 11.5px;
+  }
+
+  .module-empty .app-state-icon {
+    margin-bottom: 4px;
   }
 
   .module-empty > strong {

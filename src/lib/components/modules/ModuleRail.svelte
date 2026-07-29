@@ -17,7 +17,7 @@
 >
   {#if store.moduleRailCollapsed}
     <div class="rail-mode rail-mode-collapsed rail-content">
-      <div class="rail-header grid h-11 shrink-0 place-items-center text-muted-foreground">
+      <div class="rail-header grid h-14 shrink-0 place-items-center text-muted-foreground">
         <IconButton
           label="Expand module rail"
           icon={PanelLeftOpen}
@@ -100,7 +100,7 @@
   .architecture-title {
     display: grid;
     min-width: 0;
-    gap: 5px;
+    gap: 3px;
   }
 
   .architecture-title strong,
@@ -112,8 +112,8 @@
   }
 
   .architecture-title strong {
-    font-size: 14px;
-    font-weight: 620;
+    font-size: 13px;
+    font-weight: 600;
   }
 
   .architecture-title span {

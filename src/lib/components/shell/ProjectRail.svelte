@@ -18,6 +18,11 @@
       );
     }),
   );
+  const projectCountLabel = $derived(
+    store.projectSearchQuery.trim()
+      ? `${filteredProjects.length} of ${store.projects.length}`
+      : `${store.projects.length} ${store.projects.length === 1 ? 'project' : 'projects'}`,
+  );
 </script>
 
 <aside
@@ -27,7 +32,7 @@
 >
   {#if store.projectRailCollapsed}
     <div class="rail-mode rail-mode-collapsed rail-content">
-      <div class="rail-header grid h-11 shrink-0 place-items-center">
+      <div class="rail-header grid h-14 shrink-0 place-items-center">
         <IconButton
           label="Expand project rail"
           icon={PanelLeftOpen}
@@ -62,7 +67,7 @@
     </div>
   {:else}
     <div class="rail-mode rail-mode-expanded rail-content">
-      <div class="rail-header flex h-11 shrink-0 items-center justify-between px-2 pl-4">
+      <div class="rail-header flex h-14 shrink-0 items-center justify-between px-2 pl-4">
         <span class="text-body font-semibold">Projects</span>
         <div class="flex items-center">
           <IconButton
@@ -82,11 +87,18 @@
         <GlassSearchField bind:value={store.projectSearchQuery} placeholder="Filter projects" />
       </div>
 
+      <div
+        class="flex items-center justify-between px-4 pt-1 pb-2 text-caption text-muted-foreground"
+      >
+        <span>Registered</span>
+        <span class="font-mono">{projectCountLabel}</span>
+      </div>
+
       <ScrollArea class="min-h-0 flex-1">
         <div class:empty={filteredProjects.length === 0} class="project-list">
           {#if filteredProjects.length === 0}
             <div class="project-empty app-state-fill" role="status">
-              <SearchX class="size-4" strokeWidth={1.7} aria-hidden="true" />
+              <span class="app-state-icon"><SearchX strokeWidth={1.7} aria-hidden="true" /></span>
               <strong>No matching projects</strong>
               <span>Try a broader filter.</span>
               <Button variant="ghost" size="xs" onclick={() => (store.projectSearchQuery = '')}
@@ -190,7 +202,7 @@
     min-height: 0;
     align-content: start;
     gap: 2px;
-    padding: 0 8px 16px;
+    padding: 2px 12px 12px;
   }
 
   .project-list.empty {
@@ -204,6 +216,10 @@
     gap: 8px;
     color: var(--muted-foreground);
     font-size: 11.5px;
+  }
+
+  .project-empty .app-state-icon {
+    margin-bottom: 4px;
   }
 
   .project-empty strong {

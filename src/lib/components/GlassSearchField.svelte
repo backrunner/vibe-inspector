@@ -47,4 +47,9 @@
   :global(.glass-search-field:has(input:focus-visible) .search-icon) {
     color: var(--foreground);
   }
+
+  :global(.glass-search-field input::placeholder) {
+    color: color-mix(in oklab, var(--muted-foreground) 56%, transparent);
+    font-size: 12px;
+  }
 </style>

@@ -34,10 +34,13 @@
   onMount(() => {
     const updateMap = () => {
       const bounds = surface.getBoundingClientRect();
+      // Keep the lens geometry in sync with the actual CSS corner radius so
+      // refraction follows the visible outline instead of assuming a pill.
+      const computedRadius = Number.parseFloat(getComputedStyle(surface).borderTopLeftRadius);
       const map = generateLensMap({
         width: bounds.width,
         height: bounds.height,
-        radius: bounds.height / 2,
+        radius: Number.isFinite(computedRadius) && computedRadius > 0 ? computedRadius : bounds.height / 2,
         margin: refractionMargin,
         depth: variant === 'field' ? 5.5 : 9,
         opacity: variant === 'field' ? 0.72 : 0.88,
@@ -156,7 +159,7 @@
 
   .liquid-glass-surface[data-variant='toolbar'] {
     padding: 2px;
-    border-radius: calc(var(--radius-lg) + 2px);
+    border-radius: var(--radius-lg);
     box-shadow: var(--glass-shadow);
   }
 
@@ -173,9 +176,10 @@
   }
 
   .liquid-glass-surface[data-variant='field']:focus-within {
-    outline: 2px solid var(--ring);
-    outline-offset: 1px;
-    box-shadow: var(--item-shadow);
+    box-shadow:
+      var(--item-shadow),
+      0 0 0 3px var(--glass-focus-halo),
+      inset 0 0 0 1px var(--glass-focus-rim);
   }
 
   .glass-definitions {
@@ -215,8 +219,8 @@
     background: var(--glass-tint);
   }
 
-  [data-variant='field'] .glass-tint {
-    background: color-mix(in oklab, var(--glass-tint) 72%, var(--input) 28%);
+  [data-variant='toolbar'] .glass-tint {
+    background: var(--glass-toolbar-tint);
   }
 
   .glass-highlight {
@@ -224,20 +228,6 @@
       linear-gradient(145deg, var(--glass-leading-light), transparent 46%),
       linear-gradient(325deg, var(--glass-trailing-light), transparent 42%);
     box-shadow: inset 0 0 0 1px var(--glass-rim);
-  }
-
-  [data-variant='field'] .glass-highlight {
-    background:
-      linear-gradient(
-        155deg,
-        color-mix(in oklab, var(--glass-leading-light) 72%, transparent),
-        transparent 48%
-      ),
-      linear-gradient(
-        335deg,
-        color-mix(in oklab, var(--glass-trailing-light) 68%, transparent),
-        transparent 44%
-      );
   }
 
   /* Directional rim light, confined to a 1px edge band so the glass reads as
@@ -262,10 +252,6 @@
       linear-gradient(#000 0 0) content-box,
       linear-gradient(#000 0 0);
     mask-composite: exclude;
-  }
-
-  [data-variant='field'] .glass-specular {
-    opacity: 0.6;
   }
 
   .glass-content {

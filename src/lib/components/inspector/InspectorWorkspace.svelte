@@ -14,6 +14,21 @@
   const flow = $derived(store.selectedFlow);
   const sourceRef = $derived(store.selectedSourceRef);
   let overviewPanel = $state<'flow' | 'rationale'>('flow');
+  let skeletonVisible = $state(false);
+
+  // Inspector snapshots load from a local database and usually resolve in
+  // well under a frame budget. Only reveal the skeleton when a load takes
+  // long enough to matter, so fast loads never flash placeholder chrome.
+  $effect(() => {
+    if (store.selectedProject && store.inspectorStatus === 'loading') {
+      const timer = setTimeout(() => (skeletonVisible = true), 240);
+      return () => {
+        clearTimeout(timer);
+        skeletonVisible = false;
+      };
+    }
+    skeletonVisible = false;
+  });
 
   // Keyed only on the top-level view state, never on the selected flow id, so
   // switching flows updates props in place instead of remounting FlowGraph/CodeViewer.
@@ -194,24 +209,25 @@
         </section>
       </div>
     {:else if store.selectedProject && store.inspectorStatus === 'loading'}
-      <div class="skeleton-pane" transition:fade={{ duration: 150 }}>
-        <InspectorSkeleton />
-      </div>
+      {#if skeletonVisible}
+        <div class="skeleton-pane" transition:fade={{ duration: 150 }}>
+          <InspectorSkeleton />
+        </div>
+      {/if}
     {:else if store.selectedProject && store.inspectorStatus === 'error'}
       <div class="empty-inspector app-state-fill" transition:fade={{ duration: 150 }}>
-        <span><TriangleAlert strokeWidth={1.7} /></span>
+        <span class="app-state-icon"><TriangleAlert strokeWidth={1.7} /></span>
         <strong>{store.selectedProject.name}</strong>
         <h1>Inspector data unavailable</h1>
         <p>{store.inspectorError}</p>
       </div>
     {:else if store.selectedProject}
       <div class="empty-inspector app-state-fill" transition:fade={{ duration: 150 }}>
-        <span><FolderGit2 strokeWidth={1.7} /></span>
+        <span class="app-state-icon"><FolderGit2 strokeWidth={1.7} /></span>
         <strong>{store.selectedProject.name}</strong>
         <h1>No inspector data yet</h1>
         <p>
-          Run <code>$inspector-init</code> from Codex for this project, then return here to inspect the
-          result.
+          Run <code>/inspector-init</code> for this project, then return here to inspect the result.
         </p>
       </div>
     {:else}
@@ -219,7 +235,7 @@
         class="empty-inspector app-state-fill empty-inspector-quiet"
         transition:fade={{ duration: 150 }}
       >
-        <span><FolderGit2 strokeWidth={1.7} /></span>
+        <span class="app-state-icon"><FolderGit2 strokeWidth={1.7} /></span>
         <h1>Select a project</h1>
         <p>Choose a registered project from the Projects rail to inspect its architecture.</p>
       </div>
@@ -270,21 +286,8 @@
     max-width: 460px;
   }
 
-  .empty-inspector > span {
-    display: grid;
-    width: 36px;
-    height: 36px;
+  .empty-inspector .app-state-icon {
     margin-bottom: 14px;
-    place-items: center;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    color: var(--muted-foreground);
-    background: var(--muted);
-    box-shadow: var(--control-shadow);
-  }
-
-  .empty-inspector > span :global(svg) {
-    width: 18px;
   }
 
   .empty-inspector > strong {
