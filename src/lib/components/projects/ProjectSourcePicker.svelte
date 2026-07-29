@@ -14,6 +14,7 @@
   import { Button } from '$lib/components/ui/button';
   import { Checkbox } from '$lib/components/ui/checkbox';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
+  import AgentIntegrations from '$components/agents/AgentIntegrations.svelte';
   import {
     chooseProjectDirectory,
     discoverProjectDirectory,
@@ -225,6 +226,10 @@
         <p class="boundary-note">
           Codex discovery reads project paths and conversation IDs, never message content.
         </p>
+
+        <div class="agent-setup">
+          <AgentIntegrations variant="onboarding" />
+        </div>
       {:else if step === 'scanning'}
         <div class="state-view app-state-fill" aria-live="polite">
           <span class="state-icon scanning"><Search strokeWidth={1.7} /></span>
@@ -452,6 +457,18 @@
     max-width: 62ch;
     margin: 14px 12px 0;
     font-size: 11.5px;
+  }
+
+  .agent-setup {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* The integrations component renders nothing until detection finishes or
+     when there is nothing actionable; collapse the wrapper in that case. */
+  .agent-setup:not(:has(.agent-integrations)) {
+    display: none;
   }
 
   .state-view {

@@ -1,3 +1,4 @@
+pub mod agent_integrations;
 mod codegraph;
 mod codex_history;
 pub mod command_service;
@@ -6,13 +7,16 @@ pub mod fs_broker;
 pub mod inspector;
 pub mod mcp;
 mod project_discovery;
-mod project_registry;
+pub mod project_registry;
 pub mod storage;
 pub mod tray_runtime;
 
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
+use agent_integrations::{
+    AgentIntegration, AgentIntegrationResult, InstallAgentIntegrationsInput,
+};
 use codex_history::{scan_default_codex_history, CodexHistoryScanResult, ScanCodexHistoryInput};
 use error::AppError;
 use fs_broker::{
@@ -163,7 +167,28 @@ async fn register_projects(
         let database = InspectorDatabase::for_app(&app)?;
         database.initialize()?;
         database.import_registered_projects(&registry.projects)?;
+        agent_integrations::sync_agent_project_allowlist(&registry);
         Ok(registry)
+    })
+    .await
+    .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
+}
+
+#[tauri::command]
+async fn detect_agent_integrations() -> Result<Vec<AgentIntegration>, AppError> {
+    tauri::async_runtime::spawn_blocking(agent_integrations::detect_integrations)
+        .await
+        .map_err(|error| AppError::DiscoveryTask(error.to_string()))
+}
+
+#[tauri::command]
+async fn install_agent_integrations(
+    app: tauri::AppHandle,
+    input: InstallAgentIntegrationsInput,
+) -> Result<Vec<AgentIntegrationResult>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let registry = project_registry::load_project_registry(&app)?;
+        Ok(agent_integrations::install_integrations(&registry, input))
     })
     .await
     .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
@@ -354,6 +379,8 @@ pub fn run() {
             scan_codex_history,
             load_registered_projects,
             register_projects,
+            detect_agent_integrations,
+            install_agent_integrations,
             list_inspector_projects,
             load_inspector_snapshot,
             list_inspector_activity,

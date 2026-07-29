@@ -155,3 +155,20 @@ Input context: a selected module or flow. Output: narrower child modules/flows a
 - HTTP middleware validates `Host` and, when present, `Origin` before checking the token to prevent DNS-rebinding/browser-origin access.
 - A per-user `tray.sock` handles health, open-desktop, and quit control messages. It is not an MCP transport and is mode `0600`.
 - The desktop may send `setLoginItem { enabled }` over the same socket. The tray process performs the LaunchAgent update, refreshes its menu checkbox and health snapshot, and returns no executable path or secret to the WebView.
+
+## 7. Agent integrations
+
+The desktop detects locally installed coding agents and, with explicit user selection, deploys the inspector skills and registers the `vibe-inspector` MCP server into each agent's global configuration. Repositories are never modified; installation is global per agent.
+
+| Agent | Detection | Skills directory | MCP config |
+| --- | --- | --- | --- |
+| Codex | `~/.codex/` or `codex` on `PATH` | `~/.codex/skills/<name>/` (`SKILL.md` + `agents/openai.yaml`) | `[mcp_servers.vibe-inspector]` in `~/.codex/config.toml` |
+| Claude Code | `~/.claude/` or `claude` on `PATH` | `~/.claude/skills/<name>/SKILL.md` | `mcpServers["vibe-inspector"]` in `~/.claude.json` |
+| Kimi Code | `~/.kimi-code/` or `kimi` on `PATH` (`KIMI_CODE_HOME` respected) | `~/.kimi-code/skills/<name>/SKILL.md` | `mcpServers["vibe-inspector"]` in `~/.kimi-code/mcp.json` |
+
+Rules:
+
+- Skill templates ship inside the app bundle (`src-tauri/templates/skills`) and are embedded with `include_str!`. Install state is derived by comparing on-disk content with the bundled template: `installed`, `outdated`, or `missing`.
+- Every MCP entry is a stdio server whose `command` is the `vibe-inspector-mcp` executable next to the running desktop binary. Environment per agent: `VIBE_INSPECTOR_SESSION_SECRET` (random 64-hex, generated per agent at install), `VIBE_INSPECTOR_SESSION_ID` (`agent-<id>`), and `VIBE_INSPECTOR_ALLOWED_PROJECTS` (registered project IDs, re-synced after every `register_projects`). `VIBE_INSPECTOR_ALLOW_PROJECT_CREATE` stays unset; project registration always goes through the desktop UI.
+- Writes are limited to the detected agent configuration directories inside the user home; paths are canonicalized and symlink escapes rejected. Existing config files are backed up to `<file>.vibe-inspector-backup` before the first mutation; newly created secret-bearing files are mode `0600`.
+- A failure for one agent must not abort installation for the remaining selected agents.

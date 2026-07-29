@@ -6,6 +6,7 @@
   import { Checkbox } from '$lib/components/ui/checkbox';
   import * as SegmentedControl from '$lib/components/ui/segmented-control';
   import { Skeleton } from '$lib/components/ui/skeleton';
+  import AgentIntegrations from '$components/agents/AgentIntegrations.svelte';
   import { formatRuntimeTime } from '$lib/adapters/runtime';
   import { isTauriRuntime } from '$lib/adapters/tauri';
   import { inspectorStore } from '$stores/inspector.svelte';
@@ -114,6 +115,14 @@
         </label>
       </section>
 
+      <section class="settings-section agent-setting">
+        <div class="section-copy">
+          <strong>Agent integrations</strong>
+          <span>Install inspector skills and MCP access into local coding agents.</span>
+        </div>
+        <AgentIntegrations variant="settings" />
+      </section>
+
       <section class="settings-section shortcuts-setting">
         <div class="section-copy">
           <strong>Keyboard</strong>
@@ -150,6 +159,12 @@
   .settings-section,
   .service-section {
     padding: 18px 20px;
+  }
+
+  .agent-setting {
+    display: grid;
+    align-items: start;
+    gap: 14px;
   }
 
   .settings-section + .service-section,

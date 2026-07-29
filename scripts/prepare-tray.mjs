@@ -8,7 +8,9 @@ const manifest = path.join(root, 'src-tauri', 'Cargo.toml');
 const release = process.argv.includes('--release');
 const target = process.env.TAURI_ENV_TARGET_TRIPLE || (await rustHostTarget());
 const profile = release ? 'release' : 'debug';
-const cargoArguments = ['build', '--manifest-path', manifest, '--bin', 'vibe-inspector-tray'];
+const sidecars = ['vibe-inspector-tray', 'vibe-inspector-mcp'];
+const cargoArguments = ['build', '--manifest-path', manifest];
+for (const sidecar of sidecars) cargoArguments.push('--bin', sidecar);
 
 if (release) cargoArguments.push('--release');
 if (process.env.TAURI_ENV_TARGET_TRIPLE) {
@@ -17,16 +19,18 @@ if (process.env.TAURI_ENV_TARGET_TRIPLE) {
 
 await run('cargo', cargoArguments);
 
-const targetParts = [root, 'src-tauri', 'target'];
-if (process.env.TAURI_ENV_TARGET_TRIPLE) targetParts.push(target);
-targetParts.push(profile, 'vibe-inspector-tray');
-
-const source = path.join(...targetParts);
 const destinationDirectory = path.join(root, 'src-tauri', 'binaries');
-const destination = path.join(destinationDirectory, `vibe-inspector-tray-${target}`);
 await mkdir(destinationDirectory, { recursive: true });
-await copyFile(source, destination);
-await chmod(destination, 0o755);
+for (const sidecar of sidecars) {
+  const targetParts = [root, 'src-tauri', 'target'];
+  if (process.env.TAURI_ENV_TARGET_TRIPLE) targetParts.push(target);
+  targetParts.push(profile, sidecar);
+
+  const source = path.join(...targetParts);
+  const destination = path.join(destinationDirectory, `${sidecar}-${target}`);
+  await copyFile(source, destination);
+  await chmod(destination, 0o755);
+}
 
 async function rustHostTarget() {
   const output = await capture('rustc', ['-vV']);

@@ -1,0 +1,12 @@
+interface:
+  display_name: "Inspector Clarify"
+  short_description: "Split a selected module or flow precisely"
+  default_prompt: "Use $inspector-clarify to refine the selected inspector scope."
+policy:
+  allow_implicit_invocation: false
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "vibe-inspector"
+      description: "Authenticated local VibeInspector project and command tools"
+      transport: "stdio"

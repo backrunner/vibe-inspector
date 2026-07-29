@@ -28,6 +28,11 @@ import {
 } from '$lib/adapters/inspector';
 import { loadInspectorActivity, type CommandRun, type McpAuditEvent } from '$lib/adapters/activity';
 import { loadRuntimeHealth, updateLoginItem, type RuntimeHealth } from '$lib/adapters/runtime';
+import {
+  detectAgentIntegrations,
+  installAgentIntegrations,
+  type AgentIntegration,
+} from '$lib/adapters/agents';
 import { isTauriRuntime } from '$lib/adapters/tauri';
 
 export class InspectorStore {
@@ -63,6 +68,12 @@ export class InspectorStore {
   runtimeHealthError = $state('');
   runtimeHealth = $state<RuntimeHealth>();
   loginItemUpdating = $state(false);
+  agentIntegrations = $state<AgentIntegration[]>([]);
+  agentIntegrationsStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  agentSetupDismissed = $state(false);
+  agentInstallUpdating = $state(false);
+  agentInstallError = $state('');
+  agentDetecting = $state(false);
   private inspectorRequest = 0;
   private sourceRequest = 0;
   private relatedSourceRequest = 0;
@@ -113,6 +124,10 @@ export class InspectorStore {
   }
 
   selectProject(projectId: string) {
+    // Re-selecting the active project is a no-op: keep the current module,
+    // flow, and source selection instead of resetting and re-hydrating. After
+    // a hydration error the click must still work as the retry path.
+    if (projectId === this.selectedProjectId && this.inspectorStatus !== 'error') return;
     const project = this.projects.find((item) => item.id === projectId);
     if (!project) return;
     this.selectedProjectId = project.id;
@@ -144,6 +159,7 @@ export class InspectorStore {
           : 'light';
     this.projectRailCollapsed = localStorage.getItem('vibe-inspector.project-rail') === 'collapsed';
     this.moduleRailCollapsed = localStorage.getItem('vibe-inspector.module-rail') === 'collapsed';
+    this.agentSetupDismissed = localStorage.getItem('vibe-inspector.agent-setup') === 'dismissed';
     document.documentElement.classList.toggle('dark', this.theme === 'dark');
     document.documentElement.style.colorScheme = this.theme;
   }
@@ -224,6 +240,58 @@ export class InspectorStore {
     } finally {
       this.loginItemUpdating = false;
     }
+  }
+
+  async detectAgents() {
+    if (this.agentDetecting) return;
+    // Re-detection happens on every view mount so newly installed agents show
+    // up immediately; with existing data we refresh silently in the background
+    // instead of blanking the list.
+    const hasData = this.agentIntegrations.length > 0;
+    this.agentDetecting = true;
+    if (!hasData) this.agentIntegrationsStatus = 'loading';
+    try {
+      this.agentIntegrations = await detectAgentIntegrations();
+      this.agentIntegrationsStatus = 'ready';
+    } catch {
+      if (!hasData) this.agentIntegrationsStatus = 'error';
+    } finally {
+      this.agentDetecting = false;
+    }
+  }
+
+  async installAgents(agentIds: string[]) {
+    if (agentIds.length === 0 || this.agentInstallUpdating) return;
+    this.agentInstallUpdating = true;
+    this.agentInstallError = '';
+    try {
+      const results = await installAgentIntegrations(agentIds);
+      for (const result of results) {
+        if (!result.integration) continue;
+        const index = this.agentIntegrations.findIndex((entry) => entry.id === result.agentId);
+        if (index >= 0) this.agentIntegrations[index] = result.integration;
+        else this.agentIntegrations.push(result.integration);
+      }
+      const failures = results.filter((result) => result.error);
+      if (failures.length > 0) {
+        this.agentInstallError = failures
+          .map((failure) => `${failure.agentId}: ${failure.error?.message ?? 'install failed'}`)
+          .join('; ');
+      }
+      this.agentIntegrationsStatus = 'ready';
+    } catch (error) {
+      // Keep showing the current list when a refresh/install round-trip fails;
+      // only the very first load without data drops into the error state.
+      if (this.agentIntegrations.length === 0) this.agentIntegrationsStatus = 'error';
+      this.agentInstallError = discoveryErrorMessage(error);
+    } finally {
+      this.agentInstallUpdating = false;
+    }
+  }
+
+  dismissAgentSetup() {
+    this.agentSetupDismissed = true;
+    if (browser) localStorage.setItem('vibe-inspector.agent-setup', 'dismissed');
   }
 
   async restoreRegisteredProjects() {

@@ -77,3 +77,5 @@ mermaid
 ## Dependency gate
 
 Before adding a package, check Svelte 5 and Tauri compatibility, license, maintenance, and bundle impact. Packages that duplicate shadcn/Bits UI, Lucide, Tailwind variants, state management, or Mermaid diagram behavior require an explicit architecture decision.
+
+Agent integrations (skill/MCP deployment to local coding agents) ship with no new packages: the Rust side reuses the existing `serde_json`, `toml`, and `getrandom` crates plus `std::fs`, and the frontend reuses the established adapter/store pattern.
