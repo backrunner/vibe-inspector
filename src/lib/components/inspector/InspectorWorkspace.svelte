@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
+  import { onMount } from 'svelte';
   import { Check, ChevronRight, FolderGit2, Lightbulb, TriangleAlert } from '@lucide/svelte';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
   import * as SegmentedControl from '$lib/components/ui/segmented-control';
@@ -15,6 +16,23 @@
   const sourceRef = $derived(store.selectedSourceRef);
   let overviewPanel = $state<'flow' | 'rationale'>('flow');
   let skeletonVisible = $state(false);
+
+  // The empty state tells the user how to bootstrap inspector data. Each
+  // agent invokes skills differently, so pick the syntax for the agent they
+  // actually have installed (Codex first when several are present).
+  const inspectorInitHint = $derived.by(() => {
+    const detected = new Set(
+      store.agentIntegrations.filter((agent) => agent.detected).map((agent) => agent.id),
+    );
+    if (detected.has('codex')) return { command: '$inspector-init', agent: 'Codex' };
+    if (detected.has('claude')) return { command: '/inspector-init', agent: 'Claude Code' };
+    if (detected.has('kimi-code')) return { command: '/skill:inspector-init', agent: 'Kimi Code' };
+    return undefined;
+  });
+
+  onMount(() => {
+    if (store.agentIntegrationsStatus === 'idle') void store.detectAgents();
+  });
 
   // Inspector snapshots load from a local database and usually resolve in
   // well under a frame budget. Only reveal the skeleton when a load takes
@@ -226,9 +244,17 @@
         <span class="app-state-icon"><FolderGit2 strokeWidth={1.7} /></span>
         <strong>{store.selectedProject.name}</strong>
         <h1>No inspector data yet</h1>
-        <p>
-          Run <code>/inspector-init</code> for this project, then return here to inspect the result.
-        </p>
+        {#if inspectorInitHint}
+          <p>
+            Run <code>{inspectorInitHint.command}</code> in {inspectorInitHint.agent} for this
+            project, then return here to inspect the result.
+          </p>
+        {:else}
+          <p>
+            Run the inspector-init skill in your coding agent for this project, then return here to
+            inspect the result.
+          </p>
+        {/if}
       </div>
     {:else}
       <div
