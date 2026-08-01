@@ -1,6 +1,11 @@
 mod crud;
 
-use std::{collections::HashSet, time::Instant};
+use std::{
+    collections::HashSet,
+    path::{Component, Path, PathBuf},
+    sync::{Arc, RwLock},
+    time::Instant,
+};
 
 use rmcp::{
     handler::server::{router::tool::ToolRouter, wrapper::Parameters},
@@ -11,17 +16,20 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    codegraph::{related_files, RelatedFile},
     command_service::{run_inspector_command, RunInspectorCommandInput, RunInspectorCommandResult},
     error::AppError,
-    fs_broker::{read_source_range, ReadSourceInput, SourceRange},
-    inspector::{InspectorFlow, InspectorModule, InspectorSnapshot},
+    fs_broker::{
+        canonical_root, read_source_range, validated_relative_path, ReadSourceInput, SourceRange,
+    },
+    inspector::{EntityStatus, InspectorFlow, InspectorModule, InspectorSnapshot},
     storage::{commands::StoredCommandRun, mcp::McpAuditEvent, InspectorDatabase, StoredProject},
 };
 
 #[derive(Debug, Clone)]
 pub struct McpAuthorization {
     session_id: String,
-    allowed_project_ids: HashSet<String>,
+    allowed_project_ids: Arc<RwLock<HashSet<String>>>,
     allow_project_create: bool,
 }
 
@@ -40,7 +48,7 @@ impl McpAuthorization {
         }
         Ok(Self {
             session_id,
-            allowed_project_ids,
+            allowed_project_ids: Arc::new(RwLock::new(allowed_project_ids)),
             allow_project_create: false,
         })
     }
@@ -53,8 +61,8 @@ impl McpAuthorization {
         validate_session_id(&session_id)?;
         Ok(Self {
             session_id,
-            allowed_project_ids: allowed_project_ids.into_iter().collect(),
-            allow_project_create: false,
+            allowed_project_ids: Arc::new(RwLock::new(allowed_project_ids.into_iter().collect())),
+            allow_project_create: true,
         })
     }
 
@@ -84,11 +92,25 @@ impl McpAuthorization {
     }
 
     fn authorize(&self, project_id: &str) -> Result<(), AppError> {
-        if self.allowed_project_ids.contains(project_id) {
+        let allowed = self
+            .allowed_project_ids
+            .read()
+            .expect("project allow-list lock");
+        if allowed.contains(project_id) {
             Ok(())
         } else {
             Err(AppError::Unauthorized(format!("project {project_id}")))
         }
+    }
+
+    /// Grant this session access to a project it just registered through
+    /// `inspector.project.create`, so follow-up tools in the same session pass
+    /// the allow-list gate without a desktop-side re-sync.
+    fn allow_project(&self, project_id: &str) {
+        self.allowed_project_ids
+            .write()
+            .expect("project allow-list lock")
+            .insert(project_id.to_string());
     }
 
     fn authorize_project_create(&self) -> Result<(), AppError> {
@@ -211,6 +233,63 @@ pub struct ActivityInput {
     pub limit: Option<usize>,
 }
 
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchInput {
+    pub query: String,
+    pub project_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceLocateInput {
+    pub project_id: Option<String>,
+    pub path: String,
+    pub start_line: Option<usize>,
+    pub end_line: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceRelatedInput {
+    pub project_id: String,
+    pub paths: Vec<String>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchModuleMatch {
+    pub project_id: String,
+    pub module_id: String,
+    pub parent_id: Option<String>,
+    pub name: String,
+    pub slug: String,
+    pub summary: String,
+    pub status: EntityStatus,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResults {
+    pub projects: Vec<StoredProject>,
+    pub modules: Vec<SearchModuleMatch>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceLocateResult {
+    pub project: StoredProject,
+    pub relative_path: String,
+    pub modules: Vec<InspectorModule>,
+    pub related_files: Vec<RelatedFile>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RelatedFileList {
+    pub related: Vec<RelatedFile>,
+}
+
 #[derive(Debug, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectDetail {
@@ -250,7 +329,12 @@ impl VibeInspectorMcp {
         description = "List Inspector projects allowed for this authenticated MCP session"
     )]
     async fn project_list(&self) -> Result<Json<ProjectList>, String> {
-        let allowed = self.authorization.allowed_project_ids.clone();
+        let allowed = self
+            .authorization
+            .allowed_project_ids
+            .read()
+            .expect("project allow-list lock")
+            .clone();
         self.execute(
             "inspector.project.list",
             None,
@@ -315,7 +399,7 @@ impl VibeInspectorMcp {
 
     #[tool(
         name = "inspector.module.get",
-        description = "Get one active Inspector module"
+        description = "Get one active Inspector module with its flows, graphs, explanations, and source references"
     )]
     async fn module_get(
         &self,
@@ -475,6 +559,97 @@ impl VibeInspectorMcp {
     }
 
     #[tool(
+        name = "inspector.search",
+        description = "Search projects and modules by keyword across name, slug, summary, and root path. Scoped to one project when projectId is supplied, otherwise to every project allowed for this session. Use this before creating modules to find existing ones."
+    )]
+    async fn search(
+        &self,
+        Parameters(input): Parameters<SearchInput>,
+    ) -> Result<Json<SearchResults>, String> {
+        let allowed = self
+            .authorization
+            .allowed_project_ids
+            .read()
+            .expect("project allow-list lock")
+            .clone();
+        self.execute(
+            "inspector.search",
+            input.project_id.clone(),
+            Vec::new(),
+            move |database| search_projects_modules(database, &allowed, input),
+        )
+        .await
+    }
+
+    #[tool(
+        name = "inspector.source.locate",
+        description = "Resolve a code file to its Inspector project and the modules and flows whose source references cover it. Accepts an absolute path (the containing allowed project is detected) or a project-relative path with projectId. Optional line range narrows the match. Also returns CodeGraph-related files when the project has an index."
+    )]
+    async fn source_locate(
+        &self,
+        Parameters(input): Parameters<SourceLocateInput>,
+    ) -> Result<Json<SourceLocateResult>, String> {
+        let allowed = self
+            .authorization
+            .allowed_project_ids
+            .read()
+            .expect("project allow-list lock")
+            .clone();
+        let entity_ids = input.project_id.iter().cloned().collect();
+        let audit_resolved_project = input.project_id.is_none();
+        let result = self
+            .execute(
+                "inspector.source.locate",
+                input.project_id.clone(),
+                entity_ids,
+                move |database| locate_source(database, &allowed, input),
+            )
+            .await?;
+        if audit_resolved_project {
+            // `execute` already audited the call without a project; add the
+            // project the path resolved to so the trail stays complete.
+            let database = self.database.clone();
+            let session_id = self.authorization.session_id.clone();
+            let project_id = result.0.project.id.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                database.record_mcp_audit(
+                    &session_id,
+                    "inspector.source.locate",
+                    Some(&project_id),
+                    &[],
+                    "ok",
+                    0,
+                )
+            })
+            .await;
+        }
+        Ok(result)
+    }
+
+    #[tool(
+        name = "inspector.source.related",
+        description = "List CodeGraph dependency and dependent files for the given project-relative source paths. Read-only; returns an empty list when the project has no .codegraph/codegraph.db index."
+    )]
+    async fn source_related(
+        &self,
+        Parameters(input): Parameters<SourceRelatedInput>,
+    ) -> Result<Json<RelatedFileList>, String> {
+        let project_id = input.project_id.clone();
+        self.execute(
+            "inspector.source.related",
+            Some(project_id.clone()),
+            Vec::new(),
+            move |database| {
+                let project = database.project(&project_id)?;
+                Ok(RelatedFileList {
+                    related: related_files(Path::new(&project.root_path), &input.paths)?,
+                })
+            },
+        )
+        .await
+    }
+
+    #[tool(
         name = "inspector.command.run",
         description = "Validate and run inspector-init, inspector-sync, or inspector-clarify through the shared command service"
     )]
@@ -495,7 +670,7 @@ impl VibeInspectorMcp {
 
     #[tool(
         name = "inspector.project.create",
-        description = "Register one recognized local project root when this session has project-create capability"
+        description = "Register a recognized local project root, or return the project already registered for that root. Call this with the canonical working-directory root to auto-import a project that inspector.project.list does not match; the project is authorized for the rest of this session."
     )]
     async fn project_create(
         &self,
@@ -505,13 +680,16 @@ impl VibeInspectorMcp {
             .authorize_project_create()
             .map_err(tool_error)?;
         let actor = format!("mcp:{}", self.authorization.session_id);
-        self.execute(
-            "inspector.project.create",
-            None,
-            Vec::new(),
-            move |database| crud::project_create(database, input, &actor),
-        )
-        .await
+        let result = self
+            .execute(
+                "inspector.project.create",
+                None,
+                Vec::new(),
+                move |database| crud::project_create(database, input, &actor),
+            )
+            .await?;
+        self.authorization.allow_project(&result.0.project.id);
+        Ok(result)
     }
 
     #[tool(
@@ -554,7 +732,7 @@ impl VibeInspectorMcp {
 
     #[tool(
         name = "inspector.module.create",
-        description = "Create a module with a server-generated UUIDv7 ID"
+        description = "Create a module with a server-generated UUIDv7 ID. When an active module with the same slug already exists, that module is returned unchanged (reusedExisting: true, and the expectedProjectRevision check is skipped) instead of creating a duplicate. List modules first and prefer inspector.module.update for existing modules."
     )]
     async fn module_create(
         &self,
@@ -741,9 +919,181 @@ impl ServerHandler for VibeInspectorMcp {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(
-                "Local-only repository inspection. All project reads require session allow-list authorization; source files are read-only and bounded.",
+                "Local-only repository inspection. All project reads require session allow-list authorization; source files are read-only and bounded. When the current project is not registered, auto-import it with inspector.project.create before other tools. Before creating modules, list existing ones and reuse or update matches instead of creating duplicates.",
             )
     }
+}
+
+const MAX_SEARCH_QUERY_CHARS: usize = 200;
+const MAX_SEARCH_PROJECTS: usize = 20;
+const MAX_SEARCH_MODULES: usize = 50;
+
+fn search_projects_modules(
+    database: &InspectorDatabase,
+    allowed: &HashSet<String>,
+    input: SearchInput,
+) -> Result<SearchResults, AppError> {
+    let query = input.query.trim().to_lowercase();
+    if query.is_empty() || query.len() > MAX_SEARCH_QUERY_CHARS {
+        return Err(AppError::Validation("invalid search query".to_string()));
+    }
+    let projects = database
+        .list_projects(false)?
+        .into_iter()
+        .filter(|project| {
+            input
+                .project_id
+                .as_ref()
+                .map_or_else(|| allowed.contains(&project.id), |id| id == &project.id)
+        })
+        .collect::<Vec<_>>();
+    let mut matched_projects = Vec::new();
+    let mut matched_modules = Vec::new();
+    for project in projects {
+        if matched_projects.len() < MAX_SEARCH_PROJECTS
+            && contains(&query, &[&project.name, &project.root_path])
+        {
+            matched_projects.push(project.clone());
+        }
+        if matched_modules.len() >= MAX_SEARCH_MODULES {
+            continue;
+        }
+        for module in database.load_inspector_snapshot(&project.id)?.modules {
+            if matched_modules.len() >= MAX_SEARCH_MODULES {
+                break;
+            }
+            if contains(&query, &[&module.name, &module.slug, &module.summary]) {
+                matched_modules.push(SearchModuleMatch {
+                    project_id: project.id.clone(),
+                    module_id: module.id,
+                    parent_id: module.parent_id,
+                    name: module.name,
+                    slug: module.slug,
+                    summary: module.summary,
+                    status: module.status,
+                });
+            }
+        }
+    }
+    Ok(SearchResults {
+        projects: matched_projects,
+        modules: matched_modules,
+    })
+}
+
+fn contains(query: &str, fields: &[&str]) -> bool {
+    fields
+        .iter()
+        .any(|field| field.to_lowercase().contains(query))
+}
+
+fn locate_source(
+    database: &InspectorDatabase,
+    allowed: &HashSet<String>,
+    input: SourceLocateInput,
+) -> Result<SourceLocateResult, AppError> {
+    if input.path.trim().is_empty() {
+        return Err(AppError::Validation("path is required".to_string()));
+    }
+    if input.end_line.is_some() && input.start_line.is_none() {
+        return Err(AppError::Validation(
+            "startLine is required when endLine is supplied".to_string(),
+        ));
+    }
+    if let (Some(start), Some(end)) = (input.start_line, input.end_line) {
+        if start == 0 || end < start {
+            return Err(AppError::InvalidLineRange { start, end });
+        }
+    }
+    let (project, relative_path) = match &input.project_id {
+        Some(project_id) => {
+            let project = database.project(project_id)?;
+            let relative = relative_to_project_root(&project.root_path, &input.path)?;
+            (project, relative)
+        }
+        None => {
+            let candidate = Path::new(&input.path);
+            if !candidate.is_absolute() {
+                return Err(AppError::Validation(
+                    "an absolute path is required when projectId is omitted".to_string(),
+                ));
+            }
+            let absolute = canonical_or_lexical(candidate);
+            database
+                .list_projects(false)?
+                .into_iter()
+                .filter(|project| allowed.contains(&project.id))
+                .filter_map(|project| {
+                    let root = canonical_root(Path::new(&project.root_path)).ok()?;
+                    let relative = absolute.strip_prefix(&root).ok()?.to_path_buf();
+                    Some((root.components().count(), project, relative))
+                })
+                .max_by_key(|(depth, _, _)| *depth)
+                .map(|(_, project, relative)| (project, relative))
+                .ok_or_else(|| AppError::NotFound(format!("project for path {}", input.path)))?
+        }
+    };
+    let relative_path = validated_relative_path(&relative_path.to_string_lossy())?;
+    let snapshot = database.load_inspector_snapshot(&project.id)?;
+    let line_range = input
+        .start_line
+        .map(|start| (start, input.end_line.unwrap_or(start)));
+    let modules = snapshot
+        .modules
+        .into_iter()
+        .filter_map(|mut module| {
+            module.flows.retain(|flow| {
+                flow.source_refs.iter().any(|source| {
+                    Path::new(&source.path) == relative_path
+                        && line_range.is_none_or(|(start, end)| {
+                            source.start_line <= end && source.end_line >= start
+                        })
+                })
+            });
+            (!module.flows.is_empty()).then_some(module)
+        })
+        .collect::<Vec<_>>();
+    let related = related_files(
+        Path::new(&project.root_path),
+        &[relative_path.to_string_lossy().into_owned()],
+    )?;
+    Ok(SourceLocateResult {
+        project,
+        relative_path: relative_path.to_string_lossy().into_owned(),
+        modules,
+        related_files: related,
+    })
+}
+
+fn relative_to_project_root(root_path: &str, path: &str) -> Result<PathBuf, AppError> {
+    let candidate = Path::new(path);
+    if !candidate.is_absolute() {
+        return validated_relative_path(path);
+    }
+    let root = canonical_root(Path::new(root_path))?;
+    let absolute = canonical_or_lexical(candidate);
+    let relative = absolute
+        .strip_prefix(&root)
+        .map_err(|_| AppError::PathTraversal(path.to_string()))?;
+    validated_relative_path(&relative.to_string_lossy())
+}
+
+fn canonical_or_lexical(path: &Path) -> PathBuf {
+    std::fs::canonicalize(path).unwrap_or_else(|_| {
+        let mut clean = PathBuf::new();
+        for component in path.components() {
+            match component {
+                Component::Prefix(prefix) => clean.push(prefix.as_os_str()),
+                Component::RootDir => clean.push(component.as_os_str()),
+                Component::CurDir => {}
+                Component::ParentDir => {
+                    clean.pop();
+                }
+                Component::Normal(part) => clean.push(part),
+            }
+        }
+        clean
+    })
 }
 
 fn tool_error(error: AppError) -> String {
@@ -752,7 +1102,118 @@ fn tool_error(error: AppError) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
     use super::*;
+    use crate::inspector::InspectorGraph;
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new(label: &str) -> Self {
+            let unique = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("system clock")
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "vibe-inspector-mcp-{label}-{}-{unique}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&path).expect("create test directory");
+            Self(path)
+        }
+
+        fn path(&self) -> &Path {
+            &self.0
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn fixture(label: &str) -> (TestDirectory, InspectorDatabase, String, PathBuf) {
+        let directory = TestDirectory::new(label);
+        let root = directory.path().join("project");
+        fs::create_dir(&root).expect("create root");
+        let database = InspectorDatabase::new(directory.path().join("inspector.sqlite3"));
+        database.initialize().expect("initialize database");
+        let project = database
+            .create_project(
+                "Fixture",
+                root.to_string_lossy().as_ref(),
+                "test",
+                "mcp",
+                "create-project",
+            )
+            .expect("create project");
+        (directory, database, project.id, root)
+    }
+
+    fn seed_module_with_source(
+        database: &InspectorDatabase,
+        project_id: &str,
+        root: &Path,
+    ) -> String {
+        fs::write(root.join("main.rs"), "one\ntwo\nthree\n").expect("write source");
+        let module = crud::module_create(
+            database,
+            crud::ModuleCreateInput {
+                request_id: "module-create".to_string(),
+                project_id: project_id.to_string(),
+                expected_project_revision: 1,
+                parent_id: None,
+                name: "Inspector".to_string(),
+                slug: "inspector".to_string(),
+                summary: "Inspector domain.".to_string(),
+                status: EntityStatus::Ready,
+            },
+            "test",
+        )
+        .expect("module");
+        let flow = crud::flow_create(
+            database,
+            crud::FlowCreateInput {
+                request_id: "flow-create".to_string(),
+                project_id: project_id.to_string(),
+                expected_project_revision: 2,
+                module_id: module.entity_id.clone(),
+                name: "Read".to_string(),
+                summary: "Read evidence.".to_string(),
+                status: EntityStatus::Ready,
+                graph: InspectorGraph::default(),
+            },
+            "test",
+        )
+        .expect("flow");
+        crud::source_ref_upsert(
+            database,
+            crud::SourceRefUpsertInput {
+                request_id: "source-create".to_string(),
+                project_id: project_id.to_string(),
+                expected_project_revision: 3,
+                flow_id: flow.entity_id,
+                source_ref_id: None,
+                expected_revision: None,
+                path: "main.rs".to_string(),
+                start_line: 1,
+                end_line: 2,
+                start_column: None,
+                end_column: None,
+                symbol: None,
+                label: None,
+            },
+            "test",
+        )
+        .expect("source ref");
+        module.entity_id
+    }
 
     #[test]
     fn authorization_requires_an_allow_list() {
@@ -777,7 +1238,187 @@ mod tests {
         let authorization =
             McpAuthorization::for_local_tray("tray-http:session", Vec::<String>::new())
                 .expect("empty local allow-list");
-        assert!(authorization.allowed_project_ids.is_empty());
+        assert!(authorization
+            .allowed_project_ids
+            .read()
+            .expect("project allow-list lock")
+            .is_empty());
+    }
+
+    #[test]
+    fn local_tray_allows_project_create_for_auto_import() {
+        let authorization =
+            McpAuthorization::for_local_tray("tray-http:session", Vec::<String>::new())
+                .expect("empty local allow-list");
+        assert!(authorization.authorize_project_create().is_ok());
+    }
+
+    #[test]
+    fn auto_registered_projects_join_the_session_allow_list() {
+        let authorization =
+            McpAuthorization::new("session", ["project-1".to_string()]).expect("authorization");
+        assert!(matches!(
+            authorization.authorize("project-2"),
+            Err(AppError::Unauthorized(_))
+        ));
+        authorization.allow_project("project-2");
+        assert!(authorization.authorize("project-2").is_ok());
+    }
+
+    #[test]
+    fn search_matches_projects_and_modules_within_the_allow_list() {
+        let (_directory, database, project_id, root) = fixture("search");
+        seed_module_with_source(&database, &project_id, &root);
+        let allowed = HashSet::from([project_id.clone()]);
+
+        let by_module = search_projects_modules(
+            &database,
+            &allowed,
+            SearchInput {
+                query: "domain".to_string(),
+                project_id: None,
+            },
+        )
+        .expect("search by module");
+        assert!(by_module.projects.is_empty());
+        assert_eq!(by_module.modules.len(), 1);
+        assert_eq!(by_module.modules[0].slug, "inspector");
+
+        let by_project = search_projects_modules(
+            &database,
+            &allowed,
+            SearchInput {
+                query: "fixture".to_string(),
+                project_id: None,
+            },
+        )
+        .expect("search by project");
+        assert_eq!(by_project.projects.len(), 1);
+        assert_eq!(by_project.projects[0].id, project_id);
+
+        let scoped = search_projects_modules(
+            &database,
+            &allowed,
+            SearchInput {
+                query: "inspector".to_string(),
+                project_id: Some(project_id.clone()),
+            },
+        )
+        .expect("scoped search");
+        assert_eq!(scoped.modules.len(), 1);
+
+        let not_allowed = search_projects_modules(
+            &database,
+            &HashSet::new(),
+            SearchInput {
+                query: "inspector".to_string(),
+                project_id: None,
+            },
+        )
+        .expect("search outside the allow-list");
+        assert!(not_allowed.projects.is_empty());
+        assert!(not_allowed.modules.is_empty());
+
+        let invalid = search_projects_modules(
+            &database,
+            &allowed,
+            SearchInput {
+                query: "   ".to_string(),
+                project_id: None,
+            },
+        )
+        .expect_err("blank query");
+        assert!(matches!(invalid, AppError::Validation(_)));
+    }
+
+    #[test]
+    fn locate_resolves_a_file_to_its_project_and_modules() {
+        let (_directory, database, project_id, root) = fixture("locate");
+        let module_id = seed_module_with_source(&database, &project_id, &root);
+        let allowed = HashSet::from([project_id.clone()]);
+        let absolute = root.join("main.rs").to_string_lossy().into_owned();
+
+        let located = locate_source(
+            &database,
+            &allowed,
+            SourceLocateInput {
+                project_id: None,
+                path: absolute.clone(),
+                start_line: None,
+                end_line: None,
+            },
+        )
+        .expect("locate by absolute path");
+        assert_eq!(located.project.id, project_id);
+        assert_eq!(located.relative_path, "main.rs");
+        assert_eq!(located.modules.len(), 1);
+        assert_eq!(located.modules[0].id, module_id);
+        assert!(located.related_files.is_empty());
+
+        let missed = locate_source(
+            &database,
+            &allowed,
+            SourceLocateInput {
+                project_id: None,
+                path: absolute,
+                start_line: Some(3),
+                end_line: Some(3),
+            },
+        )
+        .expect("locate outside the recorded range");
+        assert!(missed.modules.is_empty());
+
+        let scoped = locate_source(
+            &database,
+            &allowed,
+            SourceLocateInput {
+                project_id: Some(project_id.clone()),
+                path: "main.rs".to_string(),
+                start_line: None,
+                end_line: None,
+            },
+        )
+        .expect("locate by project-relative path");
+        assert_eq!(scoped.modules.len(), 1);
+
+        let outside = locate_source(
+            &database,
+            &allowed,
+            SourceLocateInput {
+                project_id: None,
+                path: "/etc/hosts".to_string(),
+                start_line: None,
+                end_line: None,
+            },
+        )
+        .expect_err("path outside every allowed root");
+        assert!(matches!(outside, AppError::NotFound(_)));
+
+        let traversal = locate_source(
+            &database,
+            &allowed,
+            SourceLocateInput {
+                project_id: Some(project_id),
+                path: "/etc/hosts".to_string(),
+                start_line: None,
+                end_line: None,
+            },
+        )
+        .expect_err("absolute path escaping the project root");
+        assert!(matches!(traversal, AppError::PathTraversal(_)));
+
+        let missing_start = locate_source(
+            &database,
+            &allowed,
+            SourceLocateInput {
+                project_id: None,
+                path: "main.rs".to_string(),
+                start_line: None,
+                end_line: Some(4),
+            },
+        )
+        .expect_err("endLine without startLine");
+        assert!(matches!(missing_start, AppError::Validation(_)));
     }
 
     #[test]
@@ -794,7 +1435,7 @@ mod tests {
             .into_iter()
             .map(|tool| tool.name.into_owned())
             .collect::<HashSet<_>>();
-        assert_eq!(names.len(), 21);
+        assert_eq!(names.len(), 24);
         for required in [
             "inspector.project.list",
             "inspector.project.create",
@@ -803,6 +1444,9 @@ mod tests {
             "inspector.sourceRef.upsert",
             "inspector.explanation.upsert",
             "inspector.command.run",
+            "inspector.search",
+            "inspector.source.locate",
+            "inspector.source.related",
         ] {
             assert!(names.contains(required), "missing MCP tool {required}");
         }

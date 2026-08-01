@@ -29,6 +29,10 @@ pub struct InspectorMutationResult {
     pub project_revision: u64,
     pub entity_id: String,
     pub snapshot: InspectorSnapshot,
+    /// True when the mutation matched an existing entity (for example a module
+    /// whose slug already exists) and returned it unchanged instead of writing.
+    #[serde(default)]
+    pub reused_existing: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -292,6 +296,20 @@ pub fn module_create(
             let mut snapshot = database.load_inspector_snapshot(&input.project_id)?;
             if let Some(parent_id) = &input.parent_id {
                 require_module(&snapshot, parent_id)?;
+            }
+            if let Some(existing_id) = snapshot
+                .modules
+                .iter()
+                .find(|module| module.slug == input.slug)
+                .map(|module| module.id.clone())
+            {
+                return Ok(InspectorMutationResult {
+                    request_id: input.request_id.clone(),
+                    project_revision: snapshot.project_revision,
+                    entity_id: existing_id,
+                    snapshot,
+                    reused_existing: true,
+                });
             }
             let id = Uuid::now_v7().to_string();
             let now = timestamp();
@@ -870,6 +888,7 @@ fn commit(
         project_revision: committed.project_revision,
         entity_id,
         snapshot: committed,
+        reused_existing: false,
     })
 }
 
@@ -1171,6 +1190,52 @@ mod tests {
         )
         .expect("archive flow");
         assert!(archived.snapshot.modules[0].flows.is_empty());
+    }
+
+    #[test]
+    fn module_create_reuses_the_active_module_with_the_same_slug() {
+        let (_directory, database, project_id, _root) = setup("module-dedup");
+        let input = ModuleCreateInput {
+            request_id: "module-create".to_string(),
+            project_id: project_id.clone(),
+            expected_project_revision: 1,
+            parent_id: None,
+            name: "Inspector".to_string(),
+            slug: "inspector".to_string(),
+            summary: "Inspector domain.".to_string(),
+            status: EntityStatus::Ready,
+        };
+        let created = module_create(&database, input, "mcp:test").expect("create module");
+        assert!(!created.reused_existing);
+        assert_eq!(created.project_revision, 2);
+
+        let duplicate = module_create(
+            &database,
+            ModuleCreateInput {
+                request_id: "module-create-again".to_string(),
+                project_id: project_id.clone(),
+                expected_project_revision: 2,
+                parent_id: None,
+                name: "Inspector duplicate".to_string(),
+                slug: "inspector".to_string(),
+                summary: "Accidental duplicate.".to_string(),
+                status: EntityStatus::Ready,
+            },
+            "mcp:test",
+        )
+        .expect("duplicate slug reuses the existing module");
+
+        assert!(duplicate.reused_existing);
+        assert_eq!(duplicate.entity_id, created.entity_id);
+        assert_eq!(
+            duplicate.project_revision, created.project_revision,
+            "a reused module must not bump the project revision"
+        );
+        assert_eq!(duplicate.snapshot.modules.len(), 1);
+        assert_eq!(
+            duplicate.snapshot.modules[0].summary, "Inspector domain.",
+            "the existing module is returned unchanged"
+        );
     }
 
     #[test]

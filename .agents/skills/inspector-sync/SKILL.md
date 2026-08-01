@@ -1,6 +1,6 @@
 ---
 name: inspector-sync
-description: Refresh existing VibeInspector explanations, graphs, hashes, and source evidence for the current conversation scope while preserving stable module and flow IDs. Use when the user explicitly invokes $inspector-sync or asks to synchronize Inspector data with recent implementation changes. Do not use for first-time initialization or broad structural redesign without review.
+description: Refresh existing VibeInspector explanations, graphs, hashes, and source evidence for the current conversation scope while preserving stable module and flow IDs. Use when the user explicitly invokes $inspector-sync or asks to synchronize Inspector data with recent implementation changes. Do not use for first-time initialization or broad structural redesign without review; a project with no Inspector data yet falls back to the $inspector-init workflow.
 ---
 
 # Inspector Sync
@@ -9,8 +9,8 @@ Reconcile current repository evidence with an existing Inspector snapshot withou
 
 ## Workflow
 
-1. Read `AGENTS.md`, `.agents/01-system-architecture.md`, and `.agents/03-mcp-and-command-contracts.md`.
-2. Resolve the registered project with `inspector.project.list`, then load the complete current snapshot with `inspector.project.get`.
+1. Read the repository's `AGENTS.md` and any agent documentation it ships (for example `.agents/` docs) when present; skip files that do not exist.
+2. Resolve the registered project with `inspector.project.list`, then load the complete current snapshot with `inspector.project.get`. When no listed root contains the current working directory, auto-import it with `inspector.project.create` first. When the loaded snapshot has no modules, follow the `$inspector-init` workflow instead of syncing.
 3. Resolve scope in this order: explicit user prompt, selected/current conversation flow or module, then the narrowest confidently inferred entity. Ask for a target if none can be established.
 4. Reinspect implementation and tests for the selected scope. Refresh summaries, graph details, explanations, source ranges, hashes, confidence, and stale/unreadable status.
 5. Preserve every existing module and flow ID. Preserve unrelated entities byte-for-byte in the submitted full snapshot.
@@ -25,3 +25,5 @@ Reconcile current repository evidence with an existing Inspector snapshot withou
 - Never write repository source files or SQLite directly.
 - Reject malformed or unverified source ranges instead of guessing.
 - Keep changes outside the selected scope unchanged unless required for referential integrity.
+- On a revision conflict from `inspector.command.run`, reload the current snapshot with `inspector.project.get`, re-apply the changes, and retry with the new `expectedRevision`.
+- Never create a module or flow that duplicates an existing entity's responsibility; update the existing entity instead. Before any direct `inspector.module.create`, call `inspector.module.list` or `inspector.search` and reuse or update a matching module — the tool returns the existing module unchanged when the slug already exists. Use `inspector.source.locate` to map a code file back to its modules before editing Inspector data for that file.

@@ -668,6 +668,14 @@ fn validate_snapshot(snapshot: &InspectorSnapshot) -> Result<(), AppError> {
     if module_ids.len() != snapshot.modules.len() {
         return Err(AppError::Validation("duplicate module ids".to_string()));
     }
+    let module_slugs = snapshot
+        .modules
+        .iter()
+        .map(|module| module.slug.as_str())
+        .collect::<HashSet<_>>();
+    if module_slugs.len() != snapshot.modules.len() {
+        return Err(AppError::Validation("duplicate module slugs".to_string()));
+    }
     for module in &snapshot.modules {
         validate_uuid(&module.id)?;
         if module.project_id != snapshot.project_id || module.name.trim().is_empty() {

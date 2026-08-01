@@ -98,10 +98,13 @@ Read tools:
 - `inspector.project.list`: projects with status and latest activity.
 - `inspector.project.get`: project metadata and module root.
 - `inspector.module.list`: module tree for a project, optionally including flow counts.
-- `inspector.module.get`: one module and child modules.
+- `inspector.module.get`: one module with its flows, graphs, explanations, and source references.
 - `inspector.flow.list`: flows for a module with status and revision.
 - `inspector.flow.get`: graph, explanation summary, and source references.
+- `inspector.search`: keyword search over project name/root path and module name/slug/summary; scoped to one project or the session allow-list. Use before creating modules to avoid duplicates.
 - `inspector.source.read`: bounded source range by `sourceRefId` or validated relative path.
+- `inspector.source.locate`: resolve a code file (absolute path, or `projectId` plus relative path, with an optional line range) to its containing allowed project and the modules/flows whose source references cover it; also returns CodeGraph-related files when the project has an index.
+- `inspector.source.related`: CodeGraph dependency/dependent files for project-relative source paths; read-only and empty when no `.codegraph/codegraph.db` exists.
 - `inspector.activity.list`: command runs, sync status, and audit events.
 
 Mutation tools:
@@ -114,6 +117,10 @@ Mutation tools:
 - `inspector.command.run` for a registered slash command; it must not execute arbitrary text as a shell command.
 
 MCP tools must call the same domain services as the UI. They may not mutate SQLite directly. `inspector.source.read` returns UTF-8 text plus a content hash and never returns data outside the registered project root.
+
+`inspector.project.create` has ensure semantics: it canonicalizes the supplied root, requires project root markers, and returns the already-registered project for the same canonical root instead of failing. Agents call it to auto-import the project they are running in when `inspector.project.list` has no match; a project registered this way joins the calling session's allow-list immediately.
+
+`inspector.module.create` has ensure semantics on the module slug: when an active module with the same slug already exists in the project, the tool returns that module unchanged with `reusedExisting: true` instead of creating a duplicate. Snapshot commits (including `inspector.command.run` proposals) are validated to reject duplicate module slugs. Callers must still list existing modules first and prefer `inspector.module.update` for entities that already exist.
 
 The desktop UI is a read-only Inspector client. It does not expose lifecycle badges for `draft`,
 `ready`, `stale`, or `needs-review`, and it does not expose a manual content-refresh action. Inspector
@@ -129,11 +136,11 @@ remain `inspector-init`, `inspector-sync`, and `inspector-clarify`.
 
 ### `$inspector-init [prompt]`
 
-Input context: current project root, current Codex conversation ID, optional natural-language scope. Output: a proposed or committed module/flow graph, explanations, and source references. Default scope is the whole repository. The command must show a summary and confidence before committing when the result changes more than a configured entity threshold.
+Input context: current project root, current Codex conversation ID, optional natural-language scope. Output: a proposed or committed module/flow graph, explanations, and source references. Default scope is the whole repository. When the current working directory is not inside a registered project root, the skill auto-imports it through `inspector.project.create` before proposing anything. The command must show a summary and confidence before committing when the result changes more than a configured entity threshold.
 
 ### `$inspector-sync [prompt]`
 
-Input context: current project and conversation module/flow context. Output: refreshed source hashes, explanations, and evidence. Existing module/flow IDs are preserved. Structural changes become a proposal with `added`, `removed`, and `renamed` lists; the caller must explicitly accept structural changes.
+Input context: current project and conversation module/flow context. Output: refreshed source hashes, explanations, and evidence. Existing module/flow IDs are preserved. Structural changes become a proposal with `added`, `removed`, and `renamed` lists; the caller must explicitly accept structural changes. When the project was never initialized (registered but no modules), the skill falls back to the `$inspector-init` workflow instead of failing.
 
 ### `$inspector-clarify [prompt]`
 
@@ -150,7 +157,7 @@ Input context: a selected module or flow. Output: narrower child modules/flows a
 ## 6. Local transports
 
 - `vibe-inspector-mcp` remains the authenticated stdio transport for direct clients that provide session environment variables.
-- `vibe-inspector-tray` hosts streamable HTTP at the URL written to `mcp-endpoint.json` in the application support directory. It binds only to loopback.
+- `vibe-inspector-tray` hosts streamable HTTP at the URL written to `mcp-endpoint.json` in the application support directory. It binds only to loopback. Tray-hosted MCP sessions allow `inspector.project.create` so desktop-local clients can auto-import a project; the new project joins that session's allow-list.
 - Every HTTP request requires `Authorization: Bearer <token>`. The OS-random 256-bit token is stored separately in `mcp-token` with mode `0600`; it is never returned by a Tauri command or diagnostic event.
 - HTTP middleware validates `Host` and, when present, `Origin` before checking the token to prevent DNS-rebinding/browser-origin access.
 - A per-user `tray.sock` handles health, open-desktop, and quit control messages. It is not an MCP transport and is mode `0600`.
@@ -169,6 +176,6 @@ The desktop detects locally installed coding agents and, with explicit user sele
 Rules:
 
 - Skill templates ship inside the app bundle (`src-tauri/templates/skills`) and are embedded with `include_str!`. Install state is derived by comparing on-disk content with the bundled template: `installed`, `outdated`, or `missing`.
-- Every MCP entry is a stdio server whose `command` is the `vibe-inspector-mcp` executable next to the running desktop binary. Environment per agent: `VIBE_INSPECTOR_SESSION_SECRET` (random 64-hex, generated per agent at install), `VIBE_INSPECTOR_SESSION_ID` (`agent-<id>`), and `VIBE_INSPECTOR_ALLOWED_PROJECTS` (registered project IDs, re-synced after every `register_projects`). `VIBE_INSPECTOR_ALLOW_PROJECT_CREATE` stays unset; project registration always goes through the desktop UI.
+- Every MCP entry is a stdio server whose `command` is the `vibe-inspector-mcp` executable next to the running desktop binary. Environment per agent: `VIBE_INSPECTOR_SESSION_SECRET` (random 64-hex, generated per agent at install), `VIBE_INSPECTOR_SESSION_ID` (`agent-<id>`), `VIBE_INSPECTOR_ALLOWED_PROJECTS` (registered project IDs, re-synced after every `register_projects`), and `VIBE_INSPECTOR_ALLOW_PROJECT_CREATE=1` so agents can auto-import the project they run in through `inspector.project.create`. The allow-list sync also upserts `VIBE_INSPECTOR_ALLOW_PROJECT_CREATE`, upgrading agent configs installed before auto-import existed. Auto-import stays bounded: the root must canonicalize inside the filesystem, carry recognized project root markers, and dedupe by canonical root path; bulk candidate discovery still requires user confirmation in the desktop UI.
 - Writes are limited to the detected agent configuration directories inside the user home; paths are canonicalized and symlink escapes rejected. Existing config files are backed up to `<file>.vibe-inspector-backup` before the first mutation; newly created secret-bearing files are mode `0600`.
 - A failure for one agent must not abort installation for the remaining selected agents.

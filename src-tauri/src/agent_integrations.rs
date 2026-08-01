@@ -406,8 +406,10 @@ enum CodexSection {
     Other,
 }
 
-/// Rewrites `command` (in `[mcp_servers.vibe-inspector]`) and
-/// `VIBE_INSPECTOR_ALLOWED_PROJECTS` (in the `.env` sub-section) in place.
+/// Rewrites `command` (in `[mcp_servers.vibe-inspector]`) and the managed env
+/// keys (`VIBE_INSPECTOR_ALLOWED_PROJECTS` when supplied, plus
+/// `VIBE_INSPECTOR_ALLOW_PROJECT_CREATE`, so previously installed agents gain
+/// auto-import on the next sync) in the `.env` sub-section in place.
 /// Keys are matched exactly after splitting on `=`, missing keys are
 /// inserted, and every other line is preserved — including the session
 /// secret and session ID. `None` leaves a value untouched.
@@ -416,10 +418,15 @@ fn update_codex_mcp_config(
     command: Option<&str>,
     allowed_projects: Option<&str>,
 ) -> Result<String, AppError> {
+    let mut env_updates: Vec<(&str, &str)> = allowed_projects
+        .map(|allowed| ("VIBE_INSPECTOR_ALLOWED_PROJECTS", allowed))
+        .into_iter()
+        .collect();
+    env_updates.push(("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE", "1"));
+    let mut pending: Vec<usize> = (0..env_updates.len()).collect();
     let mut lines: Vec<String> = existing.lines().map(str::to_string).collect();
     let mut section = CodexSection::Other;
     let mut command_done = command.is_none();
-    let mut allowed_done = allowed_projects.is_none();
     let mut server_header = None;
     let mut env_header = None;
     let mut env_inline = false;
@@ -450,14 +457,15 @@ fn update_codex_mcp_config(
                 }
             }
             CodexSection::Env => {
-                if !allowed_done && toml_line_key(&line) == Some("VIBE_INSPECTOR_ALLOWED_PROJECTS")
-                {
-                    let allowed = allowed_projects.expect("allow-list update pending");
-                    lines[index] = format!(
-                        "VIBE_INSPECTOR_ALLOWED_PROJECTS = {}",
-                        toml_string(allowed)
-                    );
-                    allowed_done = true;
+                if let Some(key) = toml_line_key(&line) {
+                    if let Some(position) = pending
+                        .iter()
+                        .position(|update| env_updates[*update].0 == key)
+                    {
+                        let update = pending.remove(position);
+                        let (key, value) = env_updates[update];
+                        lines[index] = format!("{key} = {}", toml_string(value));
+                    }
                 }
             }
             CodexSection::Other => {}
@@ -476,14 +484,18 @@ fn update_codex_mcp_config(
             env_header = Some(env_index + 1);
         }
     }
-    if !allowed_done {
-        let allowed = allowed_projects.expect("allow-list update pending");
-        let line = format!(
-            "VIBE_INSPECTOR_ALLOWED_PROJECTS = {}",
-            toml_string(allowed)
-        );
+    if !pending.is_empty() {
+        let missing = pending
+            .iter()
+            .map(|update| {
+                let (key, value) = env_updates[*update];
+                format!("{key} = {}", toml_string(value))
+            })
+            .collect::<Vec<_>>();
         if let Some(header) = env_header {
-            lines.insert(header + 1, line);
+            for (offset, line) in missing.into_iter().enumerate() {
+                lines.insert(header + 1 + offset, line);
+            }
         } else if env_inline {
             return Err(AppError::Validation(
                 "codex config.toml declares the vibe-inspector env as an inline table".to_string(),
@@ -493,7 +505,7 @@ fn update_codex_mcp_config(
                 lines.push(String::new());
             }
             lines.push(CODEX_MCP_ENV_SECTION.to_string());
-            lines.push(line);
+            lines.extend(missing);
         }
     }
     let mut text = lines.join("\n");
@@ -519,6 +531,10 @@ fn mcp_env(session_id: &str, secret: &str, project_ids: &[String]) -> BTreeMap<S
             session_id.to_string(),
         ),
         ("VIBE_INSPECTOR_ALLOWED_PROJECTS".to_string(), allowed),
+        (
+            "VIBE_INSPECTOR_ALLOW_PROJECT_CREATE".to_string(),
+            "1".to_string(),
+        ),
     ])
 }
 
@@ -797,6 +813,12 @@ fn sync_agent_allowlist(
                 "VIBE_INSPECTOR_ALLOWED_PROJECTS".to_string(),
                 Value::String(project_ids.join(",")),
             );
+            // Previously installed agents predate project auto-import; make
+            // sure every sync upgrades them to allow it.
+            env.insert(
+                "VIBE_INSPECTOR_ALLOW_PROJECT_CREATE".to_string(),
+                Value::String("1".to_string()),
+            );
             let updated = serde_json::to_string_pretty(&document).map_err(storage_error)?;
             if updated == existing {
                 return Ok(());
@@ -1040,10 +1062,9 @@ mod tests {
             merged["mcpServers"][MCP_SERVER_NAME]["env"]["VIBE_INSPECTOR_SESSION_ID"],
             "agent-codex"
         );
-        assert!(
-            merged["mcpServers"][MCP_SERVER_NAME]["env"]
-                .get("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE")
-                .is_none()
+        assert_eq!(
+            merged["mcpServers"][MCP_SERVER_NAME]["env"]["VIBE_INSPECTOR_ALLOW_PROJECT_CREATE"],
+            "1"
         );
 
         let merged_again = merge_json_mcp_config(&merged, "/app/vibe-inspector-mcp", &env)
@@ -1066,7 +1087,7 @@ mod tests {
         assert!(appended.contains("command = \"/app/vibe-inspector-mcp\""));
         assert!(appended.contains("VIBE_INSPECTOR_SESSION_ID = \"agent-codex\""));
         assert!(appended.contains("VIBE_INSPECTOR_ALLOWED_PROJECTS = \"project-1\""));
-        assert!(!appended.contains("ALLOW_PROJECT_CREATE"));
+        assert!(appended.contains("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE = \"1\""));
         // Existing content is preserved.
         assert!(appended.contains("[mcp_servers.node_repl]"));
 
@@ -1119,7 +1140,14 @@ mod tests {
         // Secret and session ID are preserved, not regenerated.
         assert!(updated.contains("VIBE_INSPECTOR_SESSION_SECRET = \"keepme-secret\""));
         assert!(updated.contains("VIBE_INSPECTOR_SESSION_ID = \"agent-codex\""));
+        // Agents installed before project auto-import gain the capability.
+        assert!(updated.contains("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE = \"1\""));
         assert_eq!(updated.matches(CODEX_MCP_SECTION).count(), 1);
+
+        // A second pass leaves the file unchanged.
+        let repassed = upsert_codex_mcp_config(&updated, "/new/path", &env_fixture(), &projects)
+            .expect("idempotent update");
+        assert_eq!(updated, repassed);
 
         // An empty project list leaves the allow-list untouched.
         let kept = upsert_codex_mcp_config(&updated, "/new/path", &env_fixture(), &[])
@@ -1141,6 +1169,7 @@ mod tests {
 
         assert!(updated.contains("VIBE_INSPECTOR_ALLOWED_PROJECTS_EXTRA = \"untouched\""));
         assert!(updated.contains("VIBE_INSPECTOR_ALLOWED_PROJECTS = \"p1,p2\""));
+        assert!(updated.contains("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE = \"1\""));
         // The missing key is inserted inside the env section.
         let env_at = updated.find(CODEX_MCP_ENV_SECTION).unwrap();
         let key_at = updated.find("VIBE_INSPECTOR_ALLOWED_PROJECTS = ").unwrap();
@@ -1245,20 +1274,24 @@ mod tests {
 
         let codex_config = codex_dir.join("config.toml");
         let env = mcp_env("agent-codex", &"b".repeat(64), &["old-project".to_string()]);
-        fs::write(
-            &codex_config,
-            upsert_codex_mcp_config("", "/app/vibe-inspector-mcp", &env, &["old-project".to_string()])
-                .unwrap(),
-        )
-        .unwrap();
+        // Simulate an install from before project auto-import existed.
+        let legacy_codex = upsert_codex_mcp_config("", "/app/vibe-inspector-mcp", &env, &["old-project".to_string()])
+            .unwrap()
+            .replace("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE = \"1\"\n", "");
+        assert!(!legacy_codex.contains("ALLOW_PROJECT_CREATE"));
+        fs::write(&codex_config, &legacy_codex).unwrap();
 
         let claude_config = home.join(".claude.json");
-        let document = merge_json_mcp_config(
+        let mut document = merge_json_mcp_config(
             &json!({"theme": "dark"}),
             "/app/vibe-inspector-mcp",
             &mcp_env("agent-claude", &"c".repeat(64), &["old-project".to_string()]),
         )
         .unwrap();
+        document["mcpServers"][MCP_SERVER_NAME]["env"]
+            .as_object_mut()
+            .unwrap()
+            .remove("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE");
         fs::write(&claude_config, serde_json::to_string_pretty(&document).unwrap()).unwrap();
 
         let projects = vec!["project-a".to_string(), "project-b".to_string()];
@@ -1271,6 +1304,7 @@ mod tests {
 
         let codex_text = fs::read_to_string(&codex_config).unwrap();
         assert!(codex_text.contains("VIBE_INSPECTOR_ALLOWED_PROJECTS = \"project-a,project-b\""));
+        assert!(codex_text.contains("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE = \"1\""));
         assert!(codex_text.contains(&"b".repeat(64)));
         assert!(codex_dir.join("config.toml.vibe-inspector-backup").exists());
 
@@ -1279,6 +1313,10 @@ mod tests {
         assert_eq!(
             claude_json["mcpServers"][MCP_SERVER_NAME]["env"]["VIBE_INSPECTOR_ALLOWED_PROJECTS"],
             "project-a,project-b"
+        );
+        assert_eq!(
+            claude_json["mcpServers"][MCP_SERVER_NAME]["env"]["VIBE_INSPECTOR_ALLOW_PROJECT_CREATE"],
+            "1"
         );
         assert_eq!(claude_json["theme"], "dark");
         assert_eq!(

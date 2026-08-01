@@ -5,6 +5,7 @@ use std::{
 };
 
 use rusqlite::{params, Connection, OpenFlags};
+use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::{
@@ -18,7 +19,7 @@ const MAX_RELATED_FILES: usize = 80;
 const MAX_CANDIDATE_FILES: usize = MAX_RELATED_FILES * 4;
 const MAX_EDGE_KIND_CHARS: usize = 48;
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RelatedFile {
     pub path: String,
@@ -26,7 +27,7 @@ pub struct RelatedFile {
     pub kinds: Vec<String>,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Relationship {
     Dependency,
