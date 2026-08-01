@@ -391,10 +391,7 @@ mod tests {
                 expected_hash: None,
             },
         );
-        assert!(matches!(
-            complete_result,
-            Err(AppError::PathTraversal(_))
-        ));
+        assert!(matches!(complete_result, Err(AppError::PathTraversal(_))));
     }
 
     #[test]

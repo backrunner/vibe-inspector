@@ -10,7 +10,7 @@ Reconcile current repository evidence with an existing Inspector snapshot withou
 ## Workflow
 
 1. Read the repository's `AGENTS.md` and any agent documentation it ships (for example `.agents/` docs) when present; skip files that do not exist.
-2. Resolve the registered project with `inspector.project.list`, then load the complete current snapshot with `inspector.project.get`. When no listed root contains the current working directory, auto-import it with `inspector.project.create` first. When the loaded snapshot has no modules, follow the `$inspector-init` workflow instead of syncing.
+2. Resolve the registered project with `inspector.project.list`, then load the complete current snapshot with `inspector.project.get`. When no listed root contains the current working directory, auto-import it with `inspector.project.create` first; if auto-import fails, stop and ask the user. When the loaded snapshot has no modules, follow the `$inspector-init` workflow instead of syncing.
 3. Resolve scope in this order: explicit user prompt, selected/current conversation flow or module, then the narrowest confidently inferred entity. Ask for a target if none can be established.
 4. Reinspect implementation and tests for the selected scope. Refresh summaries, graph details, explanations, source ranges, hashes, confidence, and stale/unreadable status.
 5. Preserve every existing module and flow ID. Preserve unrelated entities byte-for-byte in the submitted full snapshot.

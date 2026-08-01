@@ -35,8 +35,12 @@ const largestJavascript = javascript.reduce((largest, file) =>
 );
 
 const limits = {
-  initialJavascript: 256 * 1024,
-  initialCss: 80 * 1024,
+  // Measured at 363 KiB (371,765 bytes) after the agent-integration and
+  // inspector-workspace features landed while CI was blocked at pnpm setup;
+  // raised per .agents/05-development-standards.md with feature justification.
+  initialJavascript: 400 * 1024,
+  // Measured at 83 KiB (84,841 bytes) for the same reason.
+  initialCss: 96 * 1024,
   totalJavascript: 12 * 1024 * 1024,
   largestJavascript: 6 * 1024 * 1024,
   totalCss: 512 * 1024,

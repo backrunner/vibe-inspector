@@ -115,10 +115,13 @@ enum Direction {
     Dependent,
 }
 
+/// Accumulated CodeGraph matches per file: edge directions and kind labels.
+type RelatedCandidates = BTreeMap<String, (BTreeSet<Direction>, BTreeSet<String>)>;
+
 fn query_related_files(
     connection: &Connection,
     source_paths: &BTreeSet<String>,
-) -> rusqlite::Result<BTreeMap<String, (BTreeSet<Direction>, BTreeSet<String>)>> {
+) -> rusqlite::Result<RelatedCandidates> {
     let mut dependents = connection.prepare(DEPENDENTS_SQL)?;
     let mut dependencies = connection.prepare(DEPENDENCIES_SQL)?;
     let mut related = BTreeMap::new();

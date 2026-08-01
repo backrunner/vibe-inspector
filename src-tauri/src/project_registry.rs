@@ -149,9 +149,14 @@ fn load_registry_from_path(path: &Path) -> Result<ProjectRegistry, AppError> {
     serde_json::from_value(document).map_err(storage_error)
 }
 
+/// Registers discovered project roots into the JSON registry. `existing_ids`
+/// maps canonical root paths to Inspector project IDs that already exist in
+/// SQLite (for example projects auto-imported through MCP); new registry
+/// entries reuse those IDs so both stores share one project identity.
 pub fn register_projects(
     app: &AppHandle,
     input: RegisterProjectsInput,
+    existing_ids: &HashMap<String, Uuid>,
 ) -> Result<ProjectRegistry, AppError> {
     let mut registry = load_project_registry(app)?;
     let mut changed = false;
@@ -204,7 +209,10 @@ pub fn register_projects(
         }
 
         registry.projects.push(RegisteredProject {
-            id: Uuid::now_v7(),
+            id: existing_ids
+                .get(&candidate.root_path)
+                .copied()
+                .unwrap_or_else(Uuid::now_v7),
             name: candidate.name,
             root_path: candidate.root_path,
             kind: candidate.kind,

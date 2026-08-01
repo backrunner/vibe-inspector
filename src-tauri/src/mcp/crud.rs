@@ -294,9 +294,6 @@ pub fn module_create(
             validate_active_status(input.status)?;
             validate_slug(&input.slug)?;
             let mut snapshot = database.load_inspector_snapshot(&input.project_id)?;
-            if let Some(parent_id) = &input.parent_id {
-                require_module(&snapshot, parent_id)?;
-            }
             if let Some(existing_id) = snapshot
                 .modules
                 .iter()
@@ -310,6 +307,9 @@ pub fn module_create(
                     snapshot,
                     reused_existing: true,
                 });
+            }
+            if let Some(parent_id) = &input.parent_id {
+                require_module(&snapshot, parent_id)?;
             }
             let id = Uuid::now_v7().to_string();
             let now = timestamp();
@@ -1193,6 +1193,41 @@ mod tests {
     }
 
     #[test]
+    fn project_create_revives_an_archived_project_with_the_same_root() {
+        let (_directory, database, project_id, root) = setup("project-revive");
+        let archived = database
+            .update_project(
+                &project_id,
+                1,
+                None,
+                Some(ProjectStatus::Archived),
+                "test",
+                "mcp",
+                "archive-project",
+            )
+            .expect("archive project");
+        assert!(archived.archived_at.is_some());
+        assert!(database.list_projects(false).expect("active").is_empty());
+
+        let revived = database
+            .create_project(
+                "Fixture Revived",
+                root.to_string_lossy().as_ref(),
+                "test",
+                "mcp",
+                "revive-project",
+            )
+            .expect("revive archived project");
+
+        assert_eq!(revived.id, project_id, "the same identity is kept");
+        assert_eq!(revived.name, "Fixture Revived");
+        assert_eq!(revived.revision, 3);
+        assert!(revived.archived_at.is_none());
+        assert_eq!(revived.status, ProjectStatus::Ready);
+        assert_eq!(database.list_projects(false).expect("active").len(), 1);
+    }
+
+    #[test]
     fn module_create_reuses_the_active_module_with_the_same_slug() {
         let (_directory, database, project_id, _root) = setup("module-dedup");
         let input = ModuleCreateInput {
@@ -1236,6 +1271,25 @@ mod tests {
             duplicate.snapshot.modules[0].summary, "Inspector domain.",
             "the existing module is returned unchanged"
         );
+
+        // An invalid parent does not block slug reuse either.
+        let with_bad_parent = module_create(
+            &database,
+            ModuleCreateInput {
+                request_id: "module-create-bad-parent".to_string(),
+                project_id: project_id.clone(),
+                expected_project_revision: 2,
+                parent_id: Some("does-not-exist".to_string()),
+                name: "Inspector duplicate".to_string(),
+                slug: "inspector".to_string(),
+                summary: "Accidental duplicate.".to_string(),
+                status: EntityStatus::Ready,
+            },
+            "mcp:test",
+        )
+        .expect("slug reuse skips the parent check");
+        assert!(with_bad_parent.reused_existing);
+        assert_eq!(with_bad_parent.entity_id, created.entity_id);
     }
 
     #[test]

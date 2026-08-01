@@ -6,8 +6,8 @@ use uuid::Uuid;
 use crate::error::AppError;
 
 use super::{
-    database_error, record_mutation, revision_error, revision_to_sql, timestamp, InspectorDatabase,
-    ProjectStatus, StoredProject,
+    database_error, record_mutation, revision_error, revision_from_sql, revision_to_sql, timestamp,
+    InspectorDatabase, ProjectStatus, StoredProject,
 };
 
 impl InspectorDatabase {
@@ -102,6 +102,51 @@ impl InspectorDatabase {
             .map_err(database_error)?
         {
             return self.project(&existing_id);
+        }
+        // A project archived earlier keeps the root_path uniqueness claim;
+        // revive it instead of failing on the constraint so callers get
+        // ensure semantics for archived roots as well.
+        if let Some((archived_id, archived_revision)) = connection
+            .query_row(
+                "SELECT id, revision FROM projects WHERE root_path = ?1 AND archived_at IS NOT NULL",
+                [&canonical],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?)),
+            )
+            .optional()
+            .map_err(database_error)?
+        {
+            let next_revision = revision_from_sql(archived_revision)?
+                .checked_add(1)
+                .ok_or_else(|| AppError::Database("project revision overflow".to_string()))?;
+            let now = timestamp();
+            let transaction = connection.transaction().map_err(database_error)?;
+            transaction
+                .execute(
+                    "UPDATE projects SET name = ?1, status = ?2, revision = ?3, updated_at = ?4,
+                        archived_at = NULL WHERE id = ?5",
+                    params![
+                        name,
+                        ProjectStatus::Ready.as_str(),
+                        revision_to_sql(next_revision)?,
+                        now,
+                        archived_id
+                    ],
+                )
+                .map_err(database_error)?;
+            record_mutation(
+                &transaction,
+                Some(&archived_id),
+                "project",
+                &archived_id,
+                "revive",
+                actor,
+                source,
+                next_revision,
+                Some(request_id),
+                &now,
+            )?;
+            transaction.commit().map_err(database_error)?;
+            return self.project(&archived_id);
         }
         let transaction = connection.transaction().map_err(database_error)?;
         let id = Uuid::now_v7().to_string();

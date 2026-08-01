@@ -14,9 +14,7 @@ pub mod tray_runtime;
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
-use agent_integrations::{
-    AgentIntegration, AgentIntegrationResult, InstallAgentIntegrationsInput,
-};
+use agent_integrations::{AgentIntegration, AgentIntegrationResult, InstallAgentIntegrationsInput};
 use codex_history::{scan_default_codex_history, CodexHistoryScanResult, ScanCodexHistoryInput};
 use error::AppError;
 use fs_broker::{
@@ -163,11 +161,30 @@ async fn register_projects(
     input: RegisterProjectsInput,
 ) -> Result<ProjectRegistry, AppError> {
     tauri::async_runtime::spawn_blocking(move || {
-        let registry = project_registry::register_projects(&app, input)?;
         let database = InspectorDatabase::for_app(&app)?;
         database.initialize()?;
+        // Reuse the IDs of projects that already exist in SQLite (for example
+        // auto-imported through MCP) so registry and database share one
+        // project identity per root path.
+        let existing_ids = database
+            .list_projects(false)?
+            .into_iter()
+            .filter_map(|project| {
+                uuid::Uuid::parse_str(&project.id)
+                    .ok()
+                    .map(|id| (project.root_path, id))
+            })
+            .collect::<std::collections::HashMap<_, _>>();
+        let registry = project_registry::register_projects(&app, input, &existing_ids)?;
         database.import_registered_projects(&registry.projects)?;
-        agent_integrations::sync_agent_project_allowlist(&registry);
+        let registry_ids = registry
+            .projects
+            .iter()
+            .map(|project| project.id.to_string())
+            .collect::<Vec<_>>();
+        let project_ids =
+            agent_integrations::merged_project_ids(&registry_ids, &database.list_projects(false)?);
+        agent_integrations::sync_agent_project_allowlist(&project_ids);
         Ok(registry)
     })
     .await
@@ -188,7 +205,19 @@ async fn install_agent_integrations(
 ) -> Result<Vec<AgentIntegrationResult>, AppError> {
     tauri::async_runtime::spawn_blocking(move || {
         let registry = project_registry::load_project_registry(&app)?;
-        Ok(agent_integrations::install_integrations(&registry, input))
+        let database = InspectorDatabase::for_app(&app)?;
+        database.initialize()?;
+        let registry_ids = registry
+            .projects
+            .iter()
+            .map(|project| project.id.to_string())
+            .collect::<Vec<_>>();
+        let project_ids =
+            agent_integrations::merged_project_ids(&registry_ids, &database.list_projects(false)?);
+        Ok(agent_integrations::install_integrations(
+            &project_ids,
+            input,
+        ))
     })
     .await
     .map_err(|error| AppError::DiscoveryTask(error.to_string()))?

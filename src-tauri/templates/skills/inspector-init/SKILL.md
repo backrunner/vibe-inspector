@@ -10,7 +10,7 @@ Create the first evidence-backed Inspector snapshot through the VibeInspector MC
 ## Workflow
 
 1. Read the repository's `AGENTS.md` and any agent documentation it ships (for example `.agents/` docs) when present; skip files that do not exist.
-2. Call `inspector.project.list`. Match the canonical current working directory to one registered project root. When no exact containing root is listed, auto-import the project with `inspector.project.create` using the canonical working-directory root; the call is idempotent and returns the already-registered project for the same root.
+2. Call `inspector.project.list`. Match the canonical current working directory to one registered project root. When no exact containing root is listed, auto-import the project with `inspector.project.create` using the canonical working-directory root; the call is idempotent and returns the already-registered project for the same root. If auto-import fails (for example the root is not a recognized project), stop and ask the user instead of retrying.
 3. Treat the user's trailing prompt as the requested scope. Use the whole registered repository when no scope is supplied.
 4. Inspect manifests, package boundaries, entry points, domain types, handlers, persistence, and tests. Trace business behavior rather than grouping only by folders.
 5. Produce modules, flows, renderer-neutral graph nodes/edges, design rationale, and precise repository-relative source references. Keep each reference within the registered root and prefer symbol-sized line ranges.

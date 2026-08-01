@@ -10,7 +10,7 @@ Turn a broad selected Inspector entity into precise, evidence-backed child modul
 ## Workflow
 
 1. Read the repository's `AGENTS.md` and any agent documentation it ships (for example `.agents/` docs) when present; skip files that do not exist.
-2. Resolve the registered project and load its complete snapshot with `inspector.project.list` and `inspector.project.get`. When no listed root contains the current working directory, auto-import it with `inspector.project.create`; when the snapshot has no modules, stop and ask the user to run `$inspector-init` first.
+2. Resolve the registered project and load its complete snapshot with `inspector.project.list` and `inspector.project.get`. When no listed root contains the current working directory, auto-import it with `inspector.project.create`; if auto-import fails, stop and ask the user. When the snapshot has no modules, stop and ask the user to run `$inspector-init` first.
 3. Require one target module or flow from the user's prompt or current selection. Stop and ask for a target when neither is available.
 4. Inspect the target's source references, callers, state transitions, external boundaries, failure paths, and tests.
 5. Refine around distinct responsibilities or end-to-end business outcomes. Avoid splitting solely by files, layers, or generic CRUD verbs.

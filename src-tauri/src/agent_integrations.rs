@@ -9,10 +9,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
-use crate::{
-    error::AppError,
-    project_registry::{ProjectRegistry, RegisteredProject},
-};
+use crate::{error::AppError, storage::StoredProject};
 
 const MCP_SERVER_NAME: &str = "vibe-inspector";
 const MCP_BINARY_NAME: &str = "vibe-inspector-mcp";
@@ -55,11 +52,7 @@ enum AgentKind {
 
 impl AgentKind {
     fn all() -> &'static [AgentKind] {
-        &[
-            AgentKind::Codex,
-            AgentKind::Claude,
-            AgentKind::KimiCode,
-        ]
+        &[AgentKind::Codex, AgentKind::Claude, AgentKind::KimiCode]
     }
 
     fn id(self) -> &'static str {
@@ -87,7 +80,10 @@ impl AgentKind {
     }
 
     fn from_id(id: &str) -> Option<Self> {
-        AgentKind::all().iter().copied().find(|kind| kind.id() == id)
+        AgentKind::all()
+            .iter()
+            .copied()
+            .find(|kind| kind.id() == id)
     }
 }
 
@@ -165,10 +161,7 @@ pub struct InstallAgentIntegrationsInput {
 
 /// Resolves the on-disk layout of every supported coding agent from a home
 /// directory. `kimi_code_home` mirrors the optional `KIMI_CODE_HOME` override.
-fn agent_paths(
-    home: &Path,
-    kimi_code_home: Option<&Path>,
-) -> Vec<AgentPaths> {
+fn agent_paths(home: &Path, kimi_code_home: Option<&Path>) -> Vec<AgentPaths> {
     AgentKind::all()
         .iter()
         .map(|kind| match kind {
@@ -253,12 +246,12 @@ fn skill_states(paths: &AgentPaths) -> Vec<SkillState> {
     SKILL_TEMPLATES
         .iter()
         .map(|template| {
-            let status = match fs::read_to_string(paths.skills_dir.join(template.id).join("SKILL.md"))
-            {
-                Ok(content) if content == template.skill_md => SkillInstallStatus::Installed,
-                Ok(_) => SkillInstallStatus::Outdated,
-                Err(_) => SkillInstallStatus::Missing,
-            };
+            let status =
+                match fs::read_to_string(paths.skills_dir.join(template.id).join("SKILL.md")) {
+                    Ok(content) if content == template.skill_md => SkillInstallStatus::Installed,
+                    Ok(_) => SkillInstallStatus::Outdated,
+                    Err(_) => SkillInstallStatus::Missing,
+                };
             SkillState {
                 id: template.id.to_string(),
                 status,
@@ -430,9 +423,8 @@ fn update_codex_mcp_config(
     let mut server_header = None;
     let mut env_header = None;
     let mut env_inline = false;
-    for index in 0..lines.len() {
-        let line = lines[index].clone();
-        if let Some(header) = section_header_key(&line) {
+    for (index, line) in lines.iter_mut().enumerate() {
+        if let Some(header) = section_header_key(line) {
             section = match header.as_str() {
                 "mcp_servers.vibe-inspector" => {
                     server_header = Some(index);
@@ -448,24 +440,24 @@ fn update_codex_mcp_config(
         }
         match section {
             CodexSection::Server => {
-                if !command_done && toml_line_key(&line) == Some("command") {
+                if !command_done && toml_line_key(line) == Some("command") {
                     let command = command.expect("command update pending");
-                    lines[index] = format!("command = {}", toml_string(command));
+                    *line = format!("command = {}", toml_string(command));
                     command_done = true;
-                } else if toml_line_key(&line) == Some("env") {
+                } else if toml_line_key(line) == Some("env") {
                     env_inline = true;
                 }
             }
             CodexSection::Env => {
-                if let Some(key) = toml_line_key(&line) {
-                    if let Some(position) = pending
+                let matching = toml_line_key(line).and_then(|key| {
+                    pending
                         .iter()
                         .position(|update| env_updates[*update].0 == key)
-                    {
-                        let update = pending.remove(position);
-                        let (key, value) = env_updates[update];
-                        lines[index] = format!("{key} = {}", toml_string(value));
-                    }
+                });
+                if let Some(position) = matching {
+                    let update = pending.remove(position);
+                    let (key, value) = env_updates[update];
+                    *line = format!("{key} = {}", toml_string(value));
                 }
             }
             CodexSection::Other => {}
@@ -538,12 +530,17 @@ fn mcp_env(session_id: &str, secret: &str, project_ids: &[String]) -> BTreeMap<S
     ])
 }
 
-fn registered_project_ids(registry: &ProjectRegistry) -> Vec<String> {
-    registry
-        .projects
-        .iter()
-        .map(|project: &RegisteredProject| project.id.to_string())
-        .collect()
+/// Unions registry project IDs with every active Inspector project ID.
+/// Projects created through MCP never enter the JSON registry, so syncing
+/// from the registry alone would strip them from every agent configuration.
+pub fn merged_project_ids(registry_ids: &[String], stored: &[StoredProject]) -> Vec<String> {
+    let mut ids = registry_ids.to_vec();
+    for project in stored {
+        if !ids.contains(&project.id) {
+            ids.push(project.id.clone());
+        }
+    }
+    ids
 }
 
 fn generate_session_secret() -> Result<String, AppError> {
@@ -583,9 +580,9 @@ fn mcp_binary_path() -> Result<PathBuf, AppError> {
 /// instead of passing the containment check as a "new file" and letting a
 /// later write follow it outside.
 fn ensure_write_allowed(path: &Path, containment_dir: &Path) -> Result<PathBuf, AppError> {
-    let resolved_dir = containment_dir
-        .canonicalize()
-        .map_err(|error| AppError::InvalidPath(format!("{}: {error}", containment_dir.display())))?;
+    let resolved_dir = containment_dir.canonicalize().map_err(|error| {
+        AppError::InvalidPath(format!("{}: {error}", containment_dir.display()))
+    })?;
     let resolved = match fs::symlink_metadata(path) {
         Ok(_) => path
             .canonicalize()
@@ -624,8 +621,9 @@ fn backup_existing(path: &Path) -> Result<(), AppError> {
         // Keep the first backup so the pre-VibeInspector original survives.
         return Ok(());
     }
-    fs::copy(path, &backup)
-        .map_err(|error| AppError::Storage(format!("backup of {} failed: {error}", path.display())))?;
+    fs::copy(path, &backup).map_err(|error| {
+        AppError::Storage(format!("backup of {} failed: {error}", path.display()))
+    })?;
     // fs::copy inherits the source permissions, which may be world-readable.
     fs::set_permissions(&backup, fs::Permissions::from_mode(0o600)).map_err(storage_error)
 }
@@ -690,7 +688,8 @@ fn install_mcp_config(
         }
         AgentKind::Claude | AgentKind::KimiCode => {
             let existed = fs::symlink_metadata(&paths.mcp_config_path).is_ok();
-            let target = ensure_write_allowed(&paths.mcp_config_path, mcp_containment(paths, home))?;
+            let target =
+                ensure_write_allowed(&paths.mcp_config_path, mcp_containment(paths, home))?;
             let document = if existed {
                 let text = fs::read_to_string(&target).map_err(storage_error)?;
                 serde_json::from_str::<Value>(&text).map_err(|error| {
@@ -712,7 +711,10 @@ fn install_mcp_config(
                 backup_existing(&target)?;
                 write_private_file(&target, &merged_text)
             } else {
-                write_private_file(&target, &serde_json::to_string_pretty(&merged).map_err(storage_error)?)
+                write_private_file(
+                    &target,
+                    &serde_json::to_string_pretty(&merged).map_err(storage_error)?,
+                )
             }
         }
     }
@@ -744,21 +746,22 @@ fn install_agent(
 
 /// Updates `VIBE_INSPECTOR_ALLOWED_PROJECTS` in every already-configured
 /// agent MCP config. Runs best-effort after project registration; failures
-/// are logged and never block registration.
-pub fn sync_agent_project_allowlist(registry: &ProjectRegistry) {
-    if let Err(error) = sync_agent_project_allowlist_inner(registry) {
+/// are logged and never block registration. `project_ids` should come from
+/// `merged_project_ids` so MCP-created projects survive the sync.
+pub fn sync_agent_project_allowlist(project_ids: &[String]) {
+    if let Err(error) = sync_agent_project_allowlist_inner(project_ids) {
         eprintln!("vibe-inspector: agent allow-list sync failed: {error}");
     }
 }
 
-fn sync_agent_project_allowlist_inner(registry: &ProjectRegistry) -> Result<(), AppError> {
+fn sync_agent_project_allowlist_inner(project_ids: &[String]) -> Result<(), AppError> {
     let home = PathBuf::from(
-        std::env::var_os("HOME").ok_or_else(|| AppError::Storage("HOME is unavailable".to_string()))?,
+        std::env::var_os("HOME")
+            .ok_or_else(|| AppError::Storage("HOME is unavailable".to_string()))?,
     );
     let kimi_code_home = std::env::var_os("KIMI_CODE_HOME").map(PathBuf::from);
-    let project_ids = registered_project_ids(registry);
     for paths in agent_paths(&home, kimi_code_home.as_deref()) {
-        if let Err(error) = sync_agent_allowlist(&paths, &home, &project_ids) {
+        if let Err(error) = sync_agent_allowlist(&paths, &home, project_ids) {
             eprintln!(
                 "vibe-inspector: allow-list sync for {} failed: {error}",
                 paths.kind.id()
@@ -785,8 +788,7 @@ fn sync_agent_allowlist(
     let existing = fs::read_to_string(&target).map_err(storage_error)?;
     match paths.kind {
         AgentKind::Codex => {
-            let updated =
-                update_codex_mcp_config(&existing, None, Some(&project_ids.join(",")))?;
+            let updated = update_codex_mcp_config(&existing, None, Some(&project_ids.join(",")))?;
             if updated == existing {
                 return Ok(());
             }
@@ -853,7 +855,7 @@ pub fn detect_integrations() -> Vec<AgentIntegration> {
 }
 
 pub fn install_integrations(
-    registry: &ProjectRegistry,
+    project_ids: &[String],
     input: InstallAgentIntegrationsInput,
 ) -> Vec<AgentIntegrationResult> {
     let agent_ids = input.agent_ids.iter().take(10).cloned().collect::<Vec<_>>();
@@ -872,13 +874,12 @@ pub fn install_integrations(
         }
     };
     let command = mcp_binary_path().map(|path| path.display().to_string());
-    let project_ids = registered_project_ids(registry);
     let kimi_code_home = kimi_code_home();
     let all_paths = agent_paths(&home, kimi_code_home.as_deref());
     agent_ids
         .into_iter()
         .map(|id| {
-            let outcome = install_one(&id, &all_paths, &home, &command, &project_ids);
+            let outcome = install_one(&id, &all_paths, &home, &command, project_ids);
             match outcome {
                 Ok(integration) => AgentIntegrationResult::installed(integration),
                 Err(error) => AgentIntegrationResult::failed(id, error),
@@ -945,7 +946,11 @@ mod tests {
     }
 
     fn env_fixture() -> BTreeMap<String, String> {
-        mcp_env("agent-codex", "a".repeat(64).as_str(), &["project-1".to_string()])
+        mcp_env(
+            "agent-codex",
+            "a".repeat(64).as_str(),
+            &["project-1".to_string()],
+        )
     }
 
     fn find<'a>(integrations: &'a [AgentIntegration], id: &str) -> &'a AgentIntegration {
@@ -980,12 +985,10 @@ mod tests {
         );
         assert!(!codex.mcp_configured);
         assert_eq!(codex.skill_states.len(), 3);
-        assert!(
-            codex
-                .skill_states
-                .iter()
-                .all(|state| state.status == SkillInstallStatus::Missing)
-        );
+        assert!(codex
+            .skill_states
+            .iter()
+            .all(|state| state.status == SkillInstallStatus::Missing));
         assert!(find(&integrations, "claude").detected);
         let kimi = find(&integrations, "kimi-code");
         assert!(!kimi.detected);
@@ -1001,7 +1004,7 @@ mod tests {
         fs::create_dir_all(&bin).unwrap();
         fs::write(bin.join("kimi"), "#!/bin/sh\n").unwrap();
 
-        let integrations = detect_agents(&home, &[bin.clone()], None);
+        let integrations = detect_agents(&home, std::slice::from_ref(&bin), None);
 
         let kimi = find(&integrations, "kimi-code");
         assert!(kimi.detected);
@@ -1025,18 +1028,12 @@ mod tests {
 
         let kimi = find(&integrations, "kimi-code");
         assert!(kimi.detected);
-        assert_eq!(
-            kimi.detection_evidence,
-            vec![custom.display().to_string()]
-        );
+        assert_eq!(kimi.detection_evidence, vec![custom.display().to_string()]);
         assert_eq!(
             kimi.mcp_config_path,
             custom.join("mcp.json").display().to_string()
         );
-        assert_eq!(
-            kimi.skills_dir,
-            custom.join("skills").display().to_string()
-        );
+        assert_eq!(kimi.skills_dir, custom.join("skills").display().to_string());
     }
 
     #[test]
@@ -1067,8 +1064,8 @@ mod tests {
             "1"
         );
 
-        let merged_again = merge_json_mcp_config(&merged, "/app/vibe-inspector-mcp", &env)
-            .expect("merge again");
+        let merged_again =
+            merge_json_mcp_config(&merged, "/app/vibe-inspector-mcp", &env).expect("merge again");
         assert_eq!(merged, merged_again);
 
         assert!(merge_json_mcp_config(&json!(["not", "an", "object"]), "/bin/x", &env).is_err());
@@ -1080,8 +1077,9 @@ mod tests {
         let env = env_fixture();
         let projects = vec!["project-1".to_string()];
 
-        let appended = upsert_codex_mcp_config(existing, "/app/vibe-inspector-mcp", &env, &projects)
-            .expect("append block");
+        let appended =
+            upsert_codex_mcp_config(existing, "/app/vibe-inspector-mcp", &env, &projects)
+                .expect("append block");
         assert!(appended.contains(CODEX_MCP_SECTION));
         assert!(appended.contains(CODEX_MCP_ENV_SECTION));
         assert!(appended.contains("command = \"/app/vibe-inspector-mcp\""));
@@ -1102,8 +1100,12 @@ mod tests {
 
     #[test]
     fn codex_section_detection_handles_toml_variants() {
-        assert!(has_codex_mcp_section("[mcp_servers.\"vibe-inspector\"]\ncommand = \"x\"\n").unwrap());
-        assert!(has_codex_mcp_section("[ mcp_servers.vibe-inspector ]\ncommand = \"x\"\n").unwrap());
+        assert!(
+            has_codex_mcp_section("[mcp_servers.\"vibe-inspector\"]\ncommand = \"x\"\n").unwrap()
+        );
+        assert!(
+            has_codex_mcp_section("[ mcp_servers.vibe-inspector ]\ncommand = \"x\"\n").unwrap()
+        );
         assert!(
             has_codex_mcp_section("mcp_servers = { vibe-inspector = { command = \"x\" } }\n")
                 .unwrap()
@@ -1113,7 +1115,8 @@ mod tests {
         // A corrupt file is an error, never a reason to append a duplicate.
         assert!(has_codex_mcp_section("command = [broken\n").is_err());
         assert!(
-            upsert_codex_mcp_config("command = [broken\n", "/app/mcp", &env_fixture(), &[]).is_err()
+            upsert_codex_mcp_config("command = [broken\n", "/app/mcp", &env_fixture(), &[])
+                .is_err()
         );
     }
 
@@ -1173,7 +1176,9 @@ mod tests {
         // The missing key is inserted inside the env section.
         let env_at = updated.find(CODEX_MCP_ENV_SECTION).unwrap();
         let key_at = updated.find("VIBE_INSPECTOR_ALLOWED_PROJECTS = ").unwrap();
-        let extra_at = updated.find("VIBE_INSPECTOR_ALLOWED_PROJECTS_EXTRA").unwrap();
+        let extra_at = updated
+            .find("VIBE_INSPECTOR_ALLOWED_PROJECTS_EXTRA")
+            .unwrap();
         assert!(env_at < key_at && key_at < extra_at);
     }
 
@@ -1201,8 +1206,8 @@ mod tests {
         // passing as a new file that a later write would follow outside.
         let dangling = config_dir.join("dangling.toml");
         std::os::unix::fs::symlink(directory.path().join("missing-target"), &dangling).unwrap();
-        let error = ensure_write_allowed(&dangling, &config_dir)
-            .expect_err("reject dangling symlink");
+        let error =
+            ensure_write_allowed(&dangling, &config_dir).expect_err("reject dangling symlink");
         assert!(matches!(error, AppError::InvalidPath(_)));
 
         // A regular in-tree target passes.
@@ -1241,7 +1246,10 @@ mod tests {
         assert!(!custom.starts_with(&home));
 
         let paths = agent_paths(&home, Some(&custom));
-        let kimi_paths = paths.iter().find(|p| p.kind == AgentKind::KimiCode).unwrap();
+        let kimi_paths = paths
+            .iter()
+            .find(|p| p.kind == AgentKind::KimiCode)
+            .unwrap();
         let project_ids = vec!["project-1".to_string()];
 
         // The explicit KIMI_CODE_HOME override is a trusted location even
@@ -1264,6 +1272,39 @@ mod tests {
     }
 
     #[test]
+    fn merged_project_ids_unions_registry_and_mcp_created_projects() {
+        let registry_ids = vec!["registry-1".to_string(), "shared".to_string()];
+        let stored = vec![
+            StoredProject {
+                id: "shared".to_string(),
+                name: "Shared".to_string(),
+                root_path: "/tmp/shared".to_string(),
+                status: crate::storage::ProjectStatus::Ready,
+                source: "mcp".to_string(),
+                revision: 1,
+                created_at: "1".to_string(),
+                updated_at: "1".to_string(),
+                archived_at: None,
+            },
+            StoredProject {
+                id: "mcp-only".to_string(),
+                name: "MCP".to_string(),
+                root_path: "/tmp/mcp".to_string(),
+                status: crate::storage::ProjectStatus::Ready,
+                source: "mcp".to_string(),
+                revision: 1,
+                created_at: "1".to_string(),
+                updated_at: "1".to_string(),
+                archived_at: None,
+            },
+        ];
+
+        let merged = merged_project_ids(&registry_ids, &stored);
+
+        assert_eq!(merged, vec!["registry-1", "shared", "mcp-only"]);
+    }
+
+    #[test]
     fn allow_list_sync_updates_codex_and_json_configs() {
         let directory = TestDirectory::new("allow-list-sync");
         let home = directory.path().join("home");
@@ -1275,9 +1316,14 @@ mod tests {
         let codex_config = codex_dir.join("config.toml");
         let env = mcp_env("agent-codex", &"b".repeat(64), &["old-project".to_string()]);
         // Simulate an install from before project auto-import existed.
-        let legacy_codex = upsert_codex_mcp_config("", "/app/vibe-inspector-mcp", &env, &["old-project".to_string()])
-            .unwrap()
-            .replace("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE = \"1\"\n", "");
+        let legacy_codex = upsert_codex_mcp_config(
+            "",
+            "/app/vibe-inspector-mcp",
+            &env,
+            &["old-project".to_string()],
+        )
+        .unwrap()
+        .replace("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE = \"1\"\n", "");
         assert!(!legacy_codex.contains("ALLOW_PROJECT_CREATE"));
         fs::write(&codex_config, &legacy_codex).unwrap();
 
@@ -1285,14 +1331,22 @@ mod tests {
         let mut document = merge_json_mcp_config(
             &json!({"theme": "dark"}),
             "/app/vibe-inspector-mcp",
-            &mcp_env("agent-claude", &"c".repeat(64), &["old-project".to_string()]),
+            &mcp_env(
+                "agent-claude",
+                &"c".repeat(64),
+                &["old-project".to_string()],
+            ),
         )
         .unwrap();
         document["mcpServers"][MCP_SERVER_NAME]["env"]
             .as_object_mut()
             .unwrap()
             .remove("VIBE_INSPECTOR_ALLOW_PROJECT_CREATE");
-        fs::write(&claude_config, serde_json::to_string_pretty(&document).unwrap()).unwrap();
+        fs::write(
+            &claude_config,
+            serde_json::to_string_pretty(&document).unwrap(),
+        )
+        .unwrap();
 
         let projects = vec!["project-a".to_string(), "project-b".to_string()];
         let paths = agent_paths(&home, None);
@@ -1315,7 +1369,8 @@ mod tests {
             "project-a,project-b"
         );
         assert_eq!(
-            claude_json["mcpServers"][MCP_SERVER_NAME]["env"]["VIBE_INSPECTOR_ALLOW_PROJECT_CREATE"],
+            claude_json["mcpServers"][MCP_SERVER_NAME]["env"]
+                ["VIBE_INSPECTOR_ALLOW_PROJECT_CREATE"],
             "1"
         );
         assert_eq!(claude_json["theme"], "dark");
@@ -1326,7 +1381,10 @@ mod tests {
         assert!(home.join(".claude.json.vibe-inspector-backup").exists());
 
         // Agents without a configured MCP server are left alone.
-        let kimi_paths = paths.iter().find(|p| p.kind == AgentKind::KimiCode).unwrap();
+        let kimi_paths = paths
+            .iter()
+            .find(|p| p.kind == AgentKind::KimiCode)
+            .unwrap();
         sync_agent_allowlist(kimi_paths, &home, &projects).expect("skip kimi");
         assert!(!home.join(".kimi-code/mcp.json").exists());
     }
@@ -1381,28 +1439,23 @@ mod tests {
         let codex_paths = paths.iter().find(|p| p.kind == AgentKind::Codex).unwrap();
         let project_ids = vec!["project-1".to_string()];
 
-        let result = install_agent(
-            codex_paths,
-            &home,
-            "/app/vibe-inspector-mcp",
-            &project_ids,
-        )
-        .expect("install codex");
+        let result = install_agent(codex_paths, &home, "/app/vibe-inspector-mcp", &project_ids)
+            .expect("install codex");
         assert!(result.detected);
         assert!(result.mcp_configured);
-        assert!(
-            result
-                .skill_states
-                .iter()
-                .all(|state| state.status == SkillInstallStatus::Installed)
-        );
+        assert!(result
+            .skill_states
+            .iter()
+            .all(|state| state.status == SkillInstallStatus::Installed));
 
         let skill_md = codex_dir.join("skills/inspector-init/SKILL.md");
         assert_eq!(
             fs::read_to_string(&skill_md).unwrap(),
             SKILL_TEMPLATES[0].skill_md
         );
-        assert!(codex_dir.join("skills/inspector-init/agents/openai.yaml").exists());
+        assert!(codex_dir
+            .join("skills/inspector-init/agents/openai.yaml")
+            .exists());
 
         let config = fs::read_to_string(codex_dir.join("config.toml")).unwrap();
         assert!(config.contains(CODEX_MCP_SECTION));
@@ -1435,11 +1488,7 @@ mod tests {
             .exists());
         let claude_config = home.join(".claude.json");
         assert_eq!(
-            fs::metadata(&claude_config)
-                .unwrap()
-                .permissions()
-                .mode()
-                & 0o777,
+            fs::metadata(&claude_config).unwrap().permissions().mode() & 0o777,
             0o600
         );
     }
