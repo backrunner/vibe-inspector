@@ -1,4 +1,4 @@
-import { chmod, copyFile, mkdir } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -9,6 +9,23 @@ const release = process.argv.includes('--release');
 const target = process.env.TAURI_ENV_TARGET_TRIPLE || (await rustHostTarget());
 const profile = release ? 'release' : 'debug';
 const sidecars = ['vibe-inspector-tray', 'vibe-inspector-mcp'];
+const destinationDirectory = path.join(root, 'src-tauri', 'binaries');
+
+// tauri-build validates externalBin paths at compile time, which deadlocks a
+// fresh checkout: building the sidecars compiles the lib, whose build script
+// requires the sidecar files to exist. Placeholders satisfy the existence
+// check and are replaced by the real binaries below.
+await mkdir(destinationDirectory, { recursive: true });
+for (const sidecar of sidecars) {
+  const placeholder = path.join(destinationDirectory, `${sidecar}-${target}`);
+  try {
+    await chmod(placeholder, 0o755);
+  } catch {
+    await writeFile(placeholder, '');
+    await chmod(placeholder, 0o755);
+  }
+}
+
 const cargoArguments = ['build', '--manifest-path', manifest];
 for (const sidecar of sidecars) cargoArguments.push('--bin', sidecar);
 
@@ -19,8 +36,6 @@ if (process.env.TAURI_ENV_TARGET_TRIPLE) {
 
 await run('cargo', cargoArguments);
 
-const destinationDirectory = path.join(root, 'src-tauri', 'binaries');
-await mkdir(destinationDirectory, { recursive: true });
 for (const sidecar of sidecars) {
   const targetParts = [root, 'src-tauri', 'target'];
   if (process.env.TAURI_ENV_TARGET_TRIPLE) targetParts.push(target);
