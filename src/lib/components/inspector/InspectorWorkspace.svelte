@@ -1,9 +1,18 @@
 <script lang="ts">
   import { fade } from 'svelte/transition';
   import { onMount } from 'svelte';
-  import { Check, ChevronRight, FolderGit2, Lightbulb, TriangleAlert } from '@lucide/svelte';
+  import {
+    Check,
+    ChevronRight,
+    CircleAlert,
+    FolderGit2,
+    History,
+    Lightbulb,
+    TriangleAlert,
+  } from '@lucide/svelte';
   import { ScrollArea } from '$lib/components/ui/scroll-area';
   import * as SegmentedControl from '$lib/components/ui/segmented-control';
+  import IconButton from '$components/IconButton.svelte';
   import CodeViewer from '$components/code/CodeViewer.svelte';
   import SourceFileTree from '$components/code/SourceFileTree.svelte';
   import SourceViewerSkeleton from '$components/code/SourceViewerSkeleton.svelte';
@@ -95,6 +104,21 @@
             </div>
             <h1>{flow.name}</h1>
             <p>{flow.summary}</p>
+          </div>
+          <div class="flow-actions">
+            <IconButton
+              label="Version history"
+              icon={History}
+              onclick={() => void store.openHistory()}
+            />
+            <span class="issues-action">
+              <IconButton label="Issues" icon={CircleAlert} onclick={() => void store.openIssues()} />
+              {#if store.openIssueCount > 0}
+                <span class="issue-count" aria-label={`${store.openIssueCount} open issues`}
+                  >{store.openIssueCount}</span
+                >
+              {/if}
+            </span>
           </div>
         </section>
 
@@ -352,6 +376,40 @@
     align-items: end;
     justify-content: space-between;
     gap: 24px;
+  }
+
+  .flow-actions {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+    padding-bottom: 4px;
+  }
+
+  .issues-action {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .issue-count {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    display: grid;
+    min-width: 15px;
+    height: 15px;
+    box-sizing: border-box;
+    place-items: center;
+    padding: 0 4px;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--status-warning);
+    background: var(--card);
+    box-shadow: var(--control-shadow);
+    font-family: var(--app-font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    pointer-events: none;
   }
 
   .flow-context {

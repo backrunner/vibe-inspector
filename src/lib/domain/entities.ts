@@ -90,6 +90,46 @@ export type Project = {
   revision?: number;
 };
 
+export type EntityVersionSummary = {
+  id: string;
+  projectId: string;
+  entityType: 'module' | 'flow';
+  entityId: string;
+  revision: number;
+  actor: string;
+  source: string;
+  requestId?: string | null;
+  createdAt: string;
+};
+
+export type EntityVersion = EntityVersionSummary & {
+  snapshotJson: unknown;
+};
+
+export type IssueSeverity = 'p0' | 'p1' | 'p2';
+export type IssueStatus = 'open' | 'resolved' | 'wontfix';
+
+export type Issue = {
+  id: string;
+  projectId: string;
+  moduleId: string;
+  flowId?: string | null;
+  moduleRevision?: number | null;
+  title: string;
+  description: string;
+  severity: IssueSeverity;
+  status: IssueStatus;
+  path?: string | null;
+  startLine?: number | null;
+  endLine?: number | null;
+  actor: string;
+  source: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string | null;
+};
+
 const checkoutCode = `import { reserveInventory } from '$lib/inventory';
 import { createPaymentIntent } from '$lib/payments';
 import { orderRepository } from '$lib/orders';

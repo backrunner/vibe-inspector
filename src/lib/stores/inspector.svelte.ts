@@ -5,7 +5,11 @@ import {
   findModule,
   flattenModules,
   seedProjects,
+  type EntityVersion,
+  type EntityVersionSummary,
   type Flow,
+  type Issue,
+  type IssueStatus,
   type Module,
   type Project,
   type SourceRef,
@@ -26,7 +30,17 @@ import {
   readSourceFile,
   snapshotModules,
 } from '$lib/adapters/inspector';
-import { loadInspectorActivity, type CommandRun, type McpAuditEvent } from '$lib/adapters/activity';
+import {
+  formatRelativeActivity,
+  loadInspectorActivity,
+  type CommandRun,
+  type McpAuditEvent,
+} from '$lib/adapters/activity';
+import { getEntityVersion, listEntityVersions } from '$lib/adapters/versions';
+import {
+  listProjectIssues,
+  setIssueStatus as setIssueStatusCommand,
+} from '$lib/adapters/issues';
 import { loadRuntimeHealth, updateLoginItem, type RuntimeHealth } from '$lib/adapters/runtime';
 import {
   detectAgentIntegrations,
@@ -64,6 +78,20 @@ export class InspectorStore {
   activityError = $state('');
   commandRuns = $state<CommandRun[]>([]);
   auditEvents = $state<McpAuditEvent[]>([]);
+  historyOpen = $state(false);
+  historyEntityType = $state<'module' | 'flow'>('module');
+  historyVersions = $state<EntityVersionSummary[]>([]);
+  historyStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  historyError = $state('');
+  selectedVersionId = $state('');
+  selectedVersion = $state<EntityVersion | null>(null);
+  versionDetailStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  versionDetailError = $state('');
+  issuesOpen = $state(false);
+  issues = $state<Issue[]>([]);
+  issuesStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  issuesError = $state('');
+  openIssueCount = $state(0);
   runtimeHealthStatus = $state<'idle' | 'loading' | 'ready' | 'error'>('idle');
   runtimeHealthError = $state('');
   runtimeHealth = $state<RuntimeHealth>();
@@ -77,6 +105,10 @@ export class InspectorStore {
   private inspectorRequest = 0;
   private sourceRequest = 0;
   private relatedSourceRequest = 0;
+  private historyRequest = 0;
+  private versionDetailRequest = 0;
+  private issuesRequest = 0;
+  private issueCountRequest = 0;
   private viewStateFrame = 0;
   private pendingSelection: {
     projectId?: string;
@@ -111,6 +143,12 @@ export class InspectorStore {
     );
   }
 
+  get historyEntityName(): string {
+    return this.historyEntityType === 'flow'
+      ? (this.selectedFlow?.name ?? '')
+      : (this.selectedModule?.name ?? '');
+  }
+
   get visibleSourceRefs(): SourceRef[] {
     return this.selectedFlow ? [...this.selectedFlow.sourceRefs, ...this.relatedSourceRefs] : [];
   }
@@ -137,6 +175,8 @@ export class InspectorStore {
     this.relatedSourceRefs = [];
     this.sourceCode = '';
     this.sourceStatus = 'idle';
+    this.resetInspectorPanels();
+    this.openIssueCount = 0;
     this.persistViewState();
     if (isTauriRuntime()) void this.hydrateProjectInspector(project.id, false);
     else this.selectFirstProjectFlow(project);
@@ -196,6 +236,162 @@ export class InspectorStore {
   openSettings() {
     this.settingsOpen = true;
     void this.loadRuntimeHealthSnapshot();
+  }
+
+  async openHistory() {
+    if (!this.selectedModule) return;
+    this.historyOpen = true;
+    this.historyEntityType = this.selectedFlow ? 'flow' : 'module';
+    await this.loadHistoryVersions();
+  }
+
+  closeHistory() {
+    this.historyOpen = false;
+  }
+
+  async setHistoryEntityType(entityType: 'module' | 'flow') {
+    if (entityType === this.historyEntityType || !this.historyOpen) return;
+    this.historyEntityType = entityType;
+    await this.loadHistoryVersions();
+  }
+
+  async selectVersion(versionId: string) {
+    const project = this.selectedProject;
+    this.selectedVersionId = versionId;
+    const request = ++this.versionDetailRequest;
+    this.versionDetailError = '';
+    if (!project || !isTauriRuntime()) {
+      this.selectedVersion = null;
+      this.versionDetailStatus = 'idle';
+      return;
+    }
+    this.versionDetailStatus = 'loading';
+    try {
+      const version = await getEntityVersion(project.id, versionId);
+      if (request !== this.versionDetailRequest) return;
+      this.selectedVersion = version;
+      this.versionDetailStatus = 'ready';
+    } catch (error) {
+      if (request !== this.versionDetailRequest) return;
+      this.selectedVersion = null;
+      this.versionDetailStatus = 'error';
+      this.versionDetailError = discoveryErrorMessage(error);
+    }
+  }
+
+  private async loadHistoryVersions() {
+    const project = this.selectedProject;
+    const entityId =
+      this.historyEntityType === 'flow' ? this.selectedFlow?.id : this.selectedModule?.id;
+    const request = ++this.historyRequest;
+    this.historyError = '';
+    this.selectedVersionId = '';
+    this.selectedVersion = null;
+    this.versionDetailStatus = 'idle';
+    this.versionDetailError = '';
+    if (!project || !entityId || !isTauriRuntime()) {
+      this.historyVersions = [];
+      this.historyStatus = 'ready';
+      return;
+    }
+    this.historyStatus = 'loading';
+    try {
+      const versions = await listEntityVersions(project.id, {
+        entityType: this.historyEntityType,
+        entityId,
+      });
+      if (request !== this.historyRequest) return;
+      this.historyVersions = versions;
+      this.historyStatus = 'ready';
+      if (versions[0]) void this.selectVersion(versions[0].id);
+    } catch (error) {
+      if (request !== this.historyRequest) return;
+      this.historyStatus = 'error';
+      this.historyError = discoveryErrorMessage(error);
+    }
+  }
+
+  async openIssues() {
+    if (!this.selectedModule) return;
+    this.issuesOpen = true;
+    await this.loadIssues();
+  }
+
+  closeIssues() {
+    this.issuesOpen = false;
+  }
+
+  private async loadIssues() {
+    const project = this.selectedProject;
+    const module = this.selectedModule;
+    const request = ++this.issuesRequest;
+    this.issuesError = '';
+    if (!project || !module || !isTauriRuntime()) {
+      this.issues = [];
+      this.issuesStatus = 'ready';
+      return;
+    }
+    this.issuesStatus = 'loading';
+    try {
+      const issues = await listProjectIssues(project.id, { moduleId: module.id });
+      if (request !== this.issuesRequest) return;
+      this.issues = issues;
+      this.issuesStatus = 'ready';
+    } catch (error) {
+      if (request !== this.issuesRequest) return;
+      this.issuesStatus = 'error';
+      this.issuesError = discoveryErrorMessage(error);
+    }
+  }
+
+  async setIssueStatus(issue: Issue, status: IssueStatus) {
+    const project = this.selectedProject;
+    if (!project || issue.status === status) return;
+    this.issuesError = '';
+    try {
+      const updated = await setIssueStatusCommand(project.id, issue, status);
+      this.issues = this.issues.map((item) => (item.id === updated.id ? updated : item));
+      const delta = issue.status === 'open' ? -1 : status === 'open' ? 1 : 0;
+      this.openIssueCount = Math.max(0, this.openIssueCount + delta);
+    } catch (error) {
+      this.issuesError = discoveryErrorMessage(error);
+    }
+  }
+
+  private async refreshOpenIssueCount() {
+    const project = this.selectedProject;
+    const module = this.selectedModule;
+    const request = ++this.issueCountRequest;
+    if (!project || !module || !isTauriRuntime()) {
+      this.openIssueCount = 0;
+      return;
+    }
+    try {
+      const open = await listProjectIssues(project.id, { moduleId: module.id, status: 'open' });
+      if (request !== this.issueCountRequest) return;
+      this.openIssueCount = open.length;
+    } catch {
+      if (request !== this.issueCountRequest) return;
+      this.openIssueCount = 0;
+    }
+  }
+
+  private resetInspectorPanels() {
+    this.historyRequest += 1;
+    this.versionDetailRequest += 1;
+    this.issuesRequest += 1;
+    this.historyOpen = false;
+    this.historyVersions = [];
+    this.historyStatus = 'idle';
+    this.historyError = '';
+    this.selectedVersionId = '';
+    this.selectedVersion = null;
+    this.versionDetailStatus = 'idle';
+    this.versionDetailError = '';
+    this.issuesOpen = false;
+    this.issues = [];
+    this.issuesStatus = 'idle';
+    this.issuesError = '';
   }
 
   openShortcuts() {
@@ -414,22 +610,27 @@ export class InspectorStore {
     this.selectedFlowId = flow?.id ?? '';
     this.selectedSourceRefId = flow?.sourceRefs[0]?.id ?? '';
     this.relatedSourceRefs = [];
+    this.resetInspectorPanels();
     this.persistViewState();
     void this.loadSelectedSource();
     void this.refreshRelatedSources();
+    void this.refreshOpenIssueCount();
   }
 
   selectFlow(moduleId: string, flowId: string) {
     const module = findModule(this.selectedProject, moduleId);
     const flow = module?.flows.find((item) => item.id === flowId);
     if (!module || !flow) return;
+    const moduleChanged = module.id !== this.selectedModuleId;
     this.selectedModuleId = module.id;
     this.selectedFlowId = flow.id;
     this.selectedSourceRefId = flow.sourceRefs[0]?.id ?? '';
     this.relatedSourceRefs = [];
+    this.resetInspectorPanels();
     this.persistViewState();
     void this.loadSelectedSource();
     void this.refreshRelatedSources();
+    if (moduleChanged) void this.refreshOpenIssueCount();
   }
 
   selectSourceRef(refId: string) {
@@ -517,6 +718,7 @@ export class InspectorStore {
     this.persistViewState();
     void this.loadSelectedSource();
     void this.refreshRelatedSources();
+    void this.refreshOpenIssueCount();
   }
 
   private async loadSelectedSource() {
@@ -649,6 +851,7 @@ export class InspectorStore {
     this.persistViewState();
     void this.loadSelectedSource();
     void this.refreshRelatedSources();
+    void this.refreshOpenIssueCount();
   }
 
   private persistViewState() {
@@ -669,16 +872,6 @@ export class InspectorStore {
 }
 
 export const inspectorStore = new InspectorStore();
-
-function formatRelativeActivity(value: string): string {
-  const timestamp = Number(value);
-  if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Not inspected';
-  const elapsed = Math.max(0, Date.now() - timestamp);
-  if (elapsed < 60_000) return 'Just now';
-  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
-  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
-  return `${Math.floor(elapsed / 86_400_000)}d ago`;
-}
 
 function previewSourceFile(code: string, startLine: number, endLine: number): string {
   const paddedStart = startLine > 1 ? `${'\n'.repeat(startLine - 1)}${code}` : code;

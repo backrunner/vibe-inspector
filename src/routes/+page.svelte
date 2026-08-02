@@ -11,6 +11,8 @@
   let WorkspaceRestoreError = $state<Component>();
   let ProjectPickerDialog = $state<Component>();
   let ActivityDialog = $state<Component>();
+  let VersionHistoryDialog = $state<Component>();
+  let IssuesDialog = $state<Component>();
   let SettingsDialog = $state<Component>();
   let ShortcutsDialog = $state<Component>();
   let registeredWorkspaceLoad: Promise<void> | undefined;
@@ -18,6 +20,8 @@
   let restoreErrorLoad: Promise<void> | undefined;
   let projectPickerLoad: Promise<void> | undefined;
   let activityLoad: Promise<void> | undefined;
+  let historyLoad: Promise<void> | undefined;
+  let issuesLoad: Promise<void> | undefined;
   let settingsLoad: Promise<void> | undefined;
   let shortcutsLoad: Promise<void> | undefined;
 
@@ -56,6 +60,20 @@
   function loadActivity() {
     return (activityLoad ??= import('$components/activity/ActivityDialog.svelte').then((module) => {
       ActivityDialog = module.default;
+    }));
+  }
+
+  function loadHistory() {
+    return (historyLoad ??= import('$components/history/VersionHistoryDialog.svelte').then(
+      (module) => {
+        VersionHistoryDialog = module.default;
+      },
+    ));
+  }
+
+  function loadIssues() {
+    return (issuesLoad ??= import('$components/issues/IssuesDialog.svelte').then((module) => {
+      IssuesDialog = module.default;
     }));
   }
 
@@ -121,6 +139,8 @@
     }
     if (store.projectPickerOpen) void loadProjectPicker();
     if (store.activityOpen) void loadActivity();
+    if (store.historyOpen) void loadHistory();
+    if (store.issuesOpen) void loadIssues();
     if (store.settingsOpen) void loadSettings();
     if (store.shortcutsOpen) void loadShortcuts();
   });
@@ -152,6 +172,8 @@
     </div>
     {#if ProjectPickerDialog}<ProjectPickerDialog />{/if}
     {#if ActivityDialog}<ActivityDialog />{/if}
+    {#if VersionHistoryDialog}<VersionHistoryDialog />{/if}
+    {#if IssuesDialog}<IssuesDialog />{/if}
     {#if SettingsDialog}<SettingsDialog />{/if}
     {#if ShortcutsDialog}<ShortcutsDialog />{/if}
   </Tooltip.Provider>

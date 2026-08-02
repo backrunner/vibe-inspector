@@ -43,3 +43,13 @@ export function formatActivityTime(value: string): string {
     minute: '2-digit',
   }).format(date);
 }
+
+export function formatRelativeActivity(value: string): string {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) return 'Not inspected';
+  const elapsed = Math.max(0, Date.now() - timestamp);
+  if (elapsed < 60_000) return 'Just now';
+  if (elapsed < 3_600_000) return `${Math.floor(elapsed / 60_000)}m ago`;
+  if (elapsed < 86_400_000) return `${Math.floor(elapsed / 3_600_000)}h ago`;
+  return `${Math.floor(elapsed / 86_400_000)}d ago`;
+}

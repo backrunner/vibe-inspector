@@ -24,10 +24,12 @@ use inspector::InspectorSnapshot;
 use mcp::ActivityList;
 use project_discovery::{DiscoverProjectsInput, ProjectDiscoveryResult};
 use project_registry::{ProjectRegistry, RegisterProjectsInput};
+use storage::issues::{Issue, IssuePatch, IssueStatus};
+use storage::versions::{EntityVersion, EntityVersionSummary};
 use storage::{InspectorDatabase, StoredProject};
 use tray_runtime::{
-    ensure_tray_running, install_local_panic_hook, record_diagnostic, set_tray_login_item,
-    tray_health, DiagnosticEvent, DiagnosticProcess, TrayPaths,
+    clear_quit_intent, ensure_tray_running, install_local_panic_hook, record_diagnostic,
+    set_tray_login_item, tray_health, DiagnosticEvent, DiagnosticProcess, TrayPaths,
 };
 
 #[derive(Debug, Serialize)]
@@ -261,6 +263,40 @@ struct ListInspectorActivityInput {
     limit: Option<usize>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ListEntityVersionsInput {
+    project_id: String,
+    entity_type: Option<String>,
+    entity_id: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GetEntityVersionInput {
+    project_id: String,
+    version_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ListProjectIssuesInput {
+    project_id: String,
+    module_id: Option<String>,
+    status: Option<IssueStatus>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SetIssueStatusInput {
+    project_id: String,
+    issue_id: String,
+    expected_revision: u64,
+    status: IssueStatus,
+}
+
 #[tauri::command]
 async fn list_inspector_projects(app: tauri::AppHandle) -> Result<Vec<StoredProject>, AppError> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -299,6 +335,97 @@ async fn list_inspector_activity(
             command_runs: database.list_command_runs(&input.project_id, limit)?,
             audit_events: database.list_mcp_audit(&input.project_id, limit)?,
         })
+    })
+    .await
+    .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
+}
+
+#[tauri::command]
+async fn list_entity_versions(
+    app: tauri::AppHandle,
+    input: ListEntityVersionsInput,
+) -> Result<Vec<EntityVersionSummary>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let database = InspectorDatabase::for_app(&app)?;
+        database.initialize()?;
+        database.project(&input.project_id)?;
+        let limit = input.limit.unwrap_or(50).clamp(1, 200);
+        database.list_entity_versions(
+            &input.project_id,
+            input.entity_type.as_deref(),
+            input.entity_id.as_deref(),
+            limit,
+        )
+    })
+    .await
+    .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
+}
+
+#[tauri::command]
+async fn get_entity_version(
+    app: tauri::AppHandle,
+    input: GetEntityVersionInput,
+) -> Result<EntityVersion, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let database = InspectorDatabase::for_app(&app)?;
+        database.initialize()?;
+        let version = database.get_entity_version(&input.version_id)?;
+        if version.project_id != input.project_id {
+            return Err(AppError::NotFound(format!(
+                "entity version {}",
+                input.version_id
+            )));
+        }
+        Ok(version)
+    })
+    .await
+    .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
+}
+
+#[tauri::command]
+async fn list_project_issues(
+    app: tauri::AppHandle,
+    input: ListProjectIssuesInput,
+) -> Result<Vec<Issue>, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let database = InspectorDatabase::for_app(&app)?;
+        database.initialize()?;
+        database.project(&input.project_id)?;
+        let limit = input.limit.unwrap_or(100).clamp(1, 200);
+        database.list_issues(
+            &input.project_id,
+            input.module_id.as_deref(),
+            input.status,
+            limit,
+        )
+    })
+    .await
+    .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
+}
+
+#[tauri::command]
+async fn set_issue_status(
+    app: tauri::AppHandle,
+    input: SetIssueStatusInput,
+) -> Result<Issue, AppError> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let database = InspectorDatabase::for_app(&app)?;
+        database.initialize()?;
+        let issue = database.get_issue(&input.issue_id)?;
+        if issue.project_id != input.project_id {
+            return Err(AppError::NotFound(format!("issue {}", input.issue_id)));
+        }
+        database.update_issue(
+            &input.issue_id,
+            input.expected_revision,
+            &IssuePatch {
+                status: Some(input.status),
+                ..IssuePatch::default()
+            },
+            "desktop",
+            "manual",
+            None,
+        )
     })
     .await
     .map_err(|error| AppError::DiscoveryTask(error.to_string()))?
@@ -391,6 +518,9 @@ pub fn run() {
                 let _ =
                     record_diagnostic(&paths, DiagnosticProcess::Desktop, DiagnosticEvent::Started);
                 std::thread::spawn(move || {
+                    // Opening the desktop app is an explicit user action, so a
+                    // previously recorded tray quit intent no longer applies.
+                    let _ = clear_quit_intent(&paths);
                     let event = if ensure_tray_running(&paths).is_ok() {
                         DiagnosticEvent::TrayHelperReady
                     } else {
@@ -413,6 +543,10 @@ pub fn run() {
             list_inspector_projects,
             load_inspector_snapshot,
             list_inspector_activity,
+            list_entity_versions,
+            get_entity_version,
+            list_project_issues,
+            set_issue_status,
             read_project_source,
             read_project_file,
             list_codegraph_related_files
