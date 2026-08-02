@@ -1,4 +1,4 @@
-mod diff;
+pub(crate) mod diff;
 mod normalize;
 
 use schemars::JsonSchema;
@@ -681,6 +681,100 @@ mod tests {
         )
         .expect_err("clarify target must be required");
         assert!(matches!(error, AppError::Validation(message) if message.contains("requires")));
+    }
+
+    #[test]
+    fn sync_records_entity_versions_for_changed_content() {
+        let (_directory, database, project_id) = database("sync-versions");
+        let init = run_inspector_command(
+            &database,
+            command_input(
+                &project_id,
+                InspectorCommand::InspectorInit,
+                1,
+                proposal(&project_id, 1),
+                "request-init",
+            ),
+            "codex",
+        )
+        .expect("commit init");
+        assert!(database
+            .list_entity_versions(&project_id, None, None, 10)
+            .expect("versions")
+            .is_empty());
+
+        let mut proposed = init.snapshot.clone();
+        proposed.project_revision = 2;
+        proposed.modules[0].summary = "Refined summary.".to_string();
+        proposed.modules[0].flows[0]
+            .explanation
+            .as_mut()
+            .expect("explanation")
+            .body = "Refined body.".to_string();
+        let committed = run_inspector_command(
+            &database,
+            command_input(
+                &project_id,
+                InspectorCommand::InspectorSync,
+                2,
+                proposed,
+                "request-sync",
+            ),
+            "codex",
+        )
+        .expect("commit sync");
+        assert_eq!(committed.status, CommandRunStatus::Committed);
+
+        let versions = database
+            .list_entity_versions(&project_id, None, None, 10)
+            .expect("versions");
+        assert_eq!(versions.len(), 2);
+        let module_version = versions
+            .iter()
+            .find(|version| version.entity_type == "module")
+            .expect("module version");
+        assert_eq!(module_version.revision, 1);
+        assert_eq!(module_version.entity_id, init.snapshot.modules[0].id);
+        assert_eq!(module_version.actor, "codex");
+        assert_eq!(module_version.source, "inspector-sync");
+        let flow_version = versions
+            .iter()
+            .find(|version| version.entity_type == "flow")
+            .expect("flow version");
+        let flow_detail = database
+            .get_entity_version(&flow_version.id)
+            .expect("flow version detail");
+        assert_eq!(
+            flow_detail.snapshot_json["explanation"]["body"],
+            "The flow ties each claim to a bounded source range."
+        );
+        assert_eq!(
+            flow_detail.snapshot_json["graph"]["nodes"][0]["label"],
+            "Read evidence"
+        );
+
+        let mut noop = committed.snapshot.clone();
+        noop.project_revision = 3;
+        run_inspector_command(
+            &database,
+            command_input(
+                &project_id,
+                InspectorCommand::InspectorSync,
+                3,
+                noop,
+                "request-sync-noop",
+            ),
+            "codex",
+        )
+        .expect("commit no-op sync");
+        assert_eq!(
+            database
+                .list_entity_versions(&project_id, None, None, 10)
+                .expect("versions")
+                .len(),
+            2,
+            "a no-op sync must not record versions"
+        );
     }
 
     #[test]

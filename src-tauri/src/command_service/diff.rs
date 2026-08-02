@@ -310,7 +310,7 @@ fn ensure_flow_scope_unchanged(
     Ok(())
 }
 
-pub(super) fn module_own_eq(left: &InspectorModule, right: &InspectorModule) -> bool {
+pub(crate) fn module_own_eq(left: &InspectorModule, right: &InspectorModule) -> bool {
     left.project_id == right.project_id
         && left.parent_id == right.parent_id
         && left.name == right.name
@@ -319,7 +319,7 @@ pub(super) fn module_own_eq(left: &InspectorModule, right: &InspectorModule) -> 
         && left.status == right.status
 }
 
-pub(super) fn flow_content_eq(left: &InspectorFlow, right: &InspectorFlow) -> bool {
+pub(crate) fn flow_content_eq(left: &InspectorFlow, right: &InspectorFlow) -> bool {
     left.project_id == right.project_id
         && left.module_id == right.module_id
         && left.name == right.name

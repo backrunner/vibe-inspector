@@ -4,6 +4,7 @@ use rusqlite::{params, OptionalExtension, Transaction};
 use uuid::Uuid;
 
 use crate::{
+    command_service::diff::{flow_content_eq, module_own_eq},
     error::AppError,
     inspector::{
         EntityStatus, FlowNodeKind, InspectorExplanation, InspectorFlow, InspectorFlowEdge,
@@ -14,7 +15,7 @@ use crate::{
 
 use super::{
     database_error, record_mutation, revision_from_sql, revision_to_sql, timestamp,
-    InspectorDatabase,
+    versions::record_entity_version, InspectorDatabase,
 };
 
 impl InspectorDatabase {
@@ -126,10 +127,12 @@ impl InspectorDatabase {
 
         archive_missing_entities(&transaction, snapshot, &committed_at)?;
         for module in ordered_modules(snapshot)? {
+            record_module_version(&transaction, module, actor, source, request_id, &committed_at)?;
             upsert_module(&transaction, module)?;
         }
         for module in &snapshot.modules {
             for flow in &module.flows {
+                record_flow_version(&transaction, flow, actor, source, request_id, &committed_at)?;
                 upsert_flow(&transaction, flow)?;
             }
         }
@@ -411,6 +414,199 @@ fn load_explanation(
             revision: revision_from_sql(row.7)?,
             created_at: row.8,
             updated_at: row.9,
+        })
+    })
+    .transpose()
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ModuleVersionSnapshot {
+    id: String,
+    name: String,
+    slug: String,
+    summary: String,
+    status: EntityStatus,
+    parent_id: Option<String>,
+    revision: u64,
+    created_at: String,
+    updated_at: String,
+}
+
+fn record_module_version(
+    transaction: &Transaction<'_>,
+    module: &InspectorModule,
+    actor: &str,
+    source: &str,
+    request_id: &str,
+    created_at: &str,
+) -> Result<(), AppError> {
+    let Some(stored) = load_stored_module(transaction, &module.id)? else {
+        return Ok(());
+    };
+    if module_own_eq(&stored, module) {
+        return Ok(());
+    }
+    let snapshot_json = serde_json::to_string(&ModuleVersionSnapshot {
+        id: stored.id.clone(),
+        name: stored.name.clone(),
+        slug: stored.slug.clone(),
+        summary: stored.summary.clone(),
+        status: stored.status,
+        parent_id: stored.parent_id.clone(),
+        revision: stored.revision,
+        created_at: stored.created_at.clone(),
+        updated_at: stored.updated_at.clone(),
+    })
+    .map_err(database_error)?;
+    record_entity_version(
+        transaction,
+        &stored.project_id,
+        "module",
+        &stored.id,
+        stored.revision,
+        &snapshot_json,
+        actor,
+        source,
+        Some(request_id),
+        created_at,
+    )?;
+    record_mutation(
+        transaction,
+        Some(&stored.project_id),
+        "module",
+        &stored.id,
+        "versioned",
+        actor,
+        source,
+        module.revision,
+        Some(request_id),
+        created_at,
+    )
+}
+
+fn record_flow_version(
+    transaction: &Transaction<'_>,
+    flow: &InspectorFlow,
+    actor: &str,
+    source: &str,
+    request_id: &str,
+    created_at: &str,
+) -> Result<(), AppError> {
+    let Some(stored) = load_stored_flow(transaction, &flow.id)? else {
+        return Ok(());
+    };
+    if flow_content_eq(&stored, flow) {
+        return Ok(());
+    }
+    let snapshot_json = serde_json::to_string(&stored).map_err(database_error)?;
+    record_entity_version(
+        transaction,
+        &stored.project_id,
+        "flow",
+        &stored.id,
+        stored.revision,
+        &snapshot_json,
+        actor,
+        source,
+        Some(request_id),
+        created_at,
+    )?;
+    record_mutation(
+        transaction,
+        Some(&stored.project_id),
+        "flow",
+        &stored.id,
+        "versioned",
+        actor,
+        source,
+        flow.revision,
+        Some(request_id),
+        created_at,
+    )
+}
+
+fn load_stored_module(
+    connection: &rusqlite::Connection,
+    module_id: &str,
+) -> Result<Option<InspectorModule>, AppError> {
+    let row = connection
+        .query_row(
+            "SELECT project_id, parent_id, name, slug, summary, status, revision, created_at, updated_at
+             FROM modules WHERE id = ?1",
+            [module_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, String>(7)?,
+                    row.get::<_, String>(8)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(database_error)?;
+    row.map(|row| {
+        Ok(InspectorModule {
+            id: module_id.to_string(),
+            project_id: row.0,
+            parent_id: row.1,
+            name: row.2,
+            slug: row.3,
+            summary: row.4,
+            status: parse_entity_status(&row.5)?,
+            revision: revision_from_sql(row.6)?,
+            created_at: row.7,
+            updated_at: row.8,
+            flows: Vec::new(),
+        })
+    })
+    .transpose()
+}
+
+fn load_stored_flow(
+    connection: &rusqlite::Connection,
+    flow_id: &str,
+) -> Result<Option<InspectorFlow>, AppError> {
+    let row = connection
+        .query_row(
+            "SELECT project_id, module_id, name, summary, status, revision, created_at, updated_at
+             FROM flows WHERE id = ?1",
+            [flow_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(database_error)?;
+    row.map(|row| {
+        Ok(InspectorFlow {
+            graph: load_graph(connection, flow_id)?,
+            explanation: load_explanation(connection, flow_id)?,
+            source_refs: load_source_refs(connection, &row.0, flow_id)?,
+            id: flow_id.to_string(),
+            project_id: row.0,
+            module_id: row.1,
+            name: row.2,
+            summary: row.3,
+            status: parse_entity_status(&row.4)?,
+            revision: revision_from_sql(row.5)?,
+            created_at: row.6,
+            updated_at: row.7,
         })
     })
     .transpose()

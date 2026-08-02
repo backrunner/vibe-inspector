@@ -1,8 +1,10 @@
 pub mod commands;
 pub mod inspector;
+pub mod issues;
 pub mod mcp;
 mod migrations;
 pub mod projects;
+pub mod versions;
 
 use std::{
     fs,
@@ -19,7 +21,7 @@ use uuid::Uuid;
 
 use crate::{error::AppError, project_registry::RegisteredProject};
 
-use migrations::{MIGRATION_1, MIGRATION_2, SCHEMA_VERSION};
+use migrations::{MIGRATION_1, MIGRATION_2, MIGRATION_3, SCHEMA_VERSION};
 
 const DATABASE_FILE: &str = "inspector.sqlite3";
 const BACKUP_DIRECTORY: &str = "backups";
@@ -490,6 +492,9 @@ fn migrate(connection: &mut Connection) -> Result<(), AppError> {
     if current < 2 {
         apply_migration(connection, 2, MIGRATION_2)?;
     }
+    if current < 3 {
+        apply_migration(connection, 3, MIGRATION_3)?;
+    }
     Ok(())
 }
 
@@ -872,6 +877,64 @@ mod tests {
     }
 
     #[test]
+    fn migration_three_upgrades_an_existing_v2_database() {
+        let directory = TestDirectory::new("migration-v3");
+        let database = InspectorDatabase::new(directory.path().join(DATABASE_FILE));
+        let mut connection = database.connect().expect("connect");
+        connection
+            .execute_batch(
+                "CREATE TABLE schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                );",
+            )
+            .expect("create migration table");
+        apply_migration(&mut connection, 1, MIGRATION_1).expect("apply v1");
+        apply_migration(&mut connection, 2, MIGRATION_2).expect("apply v2");
+        connection
+            .execute(
+                "INSERT INTO projects (id, name, root_path, status, source, revision, created_at, updated_at)
+                 VALUES ('project-1', 'Fixture', '/tmp/fixture', 'ready', 'manual', 1, '1', '1')",
+                [],
+            )
+            .expect("seed project");
+        connection
+            .execute(
+                "INSERT INTO modules (id, project_id, parent_id, name, slug, summary, status, revision, created_at, updated_at)
+                 VALUES ('module-1', 'project-1', NULL, 'Core', 'core', 'Core module.', 'ready', 1, '1', '1')",
+                [],
+            )
+            .expect("seed module");
+        drop(connection);
+
+        database.initialize().expect("upgrade to v3");
+        database.initialize().expect("repeat v3 initialization");
+
+        let connection = database.connect().expect("connect after upgrade");
+        let table_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master
+                 WHERE type = 'table' AND name IN ('entity_versions', 'issues')",
+                [],
+                |row| row.get(0),
+            )
+            .expect("v3 tables");
+        let module_name: String = connection
+            .query_row("SELECT name FROM modules WHERE id = 'module-1'", [], |row| {
+                row.get(0)
+            })
+            .expect("module survives upgrade");
+        assert_eq!(table_count, 2);
+        assert_eq!(module_name, "Core");
+        drop(connection);
+
+        let backups = database.migration_backups().expect("migration backups");
+        assert_eq!(backups.len(), 1);
+        let backup = Connection::open(&backups[0]).expect("open migration backup");
+        assert_eq!(schema_version(&backup).expect("backup schema"), 2);
+    }
+
+    #[test]
     fn recovery_rejects_outside_and_corrupt_backups() {
         let directory = TestDirectory::new("recovery-validation");
         let database = InspectorDatabase::new(directory.path().join(DATABASE_FILE));
@@ -922,6 +985,311 @@ mod tests {
             .expect("replay snapshot");
         assert_eq!(replayed, committed);
         assert_eq!(database.project(&project_id).expect("project").revision, 2);
+    }
+
+    #[test]
+    fn commit_records_versions_only_for_changed_entities() {
+        let directory = TestDirectory::new("entity-versions");
+        let project_root = directory.path().join("project");
+        fs::create_dir(&project_root).expect("create project root");
+        let project = registered_project(&project_root);
+        let project_id = project.id.to_string();
+        let database = InspectorDatabase::new(directory.path().join(DATABASE_FILE));
+        database.initialize().expect("initialize");
+        database
+            .import_registered_projects(&[project])
+            .expect("import project");
+        let snapshot = inspector_snapshot(&project_id);
+        let module_id = snapshot.modules[0].id.clone();
+        let parent_id = snapshot.modules[0]
+            .parent_id
+            .clone()
+            .expect("parent module id");
+        let flow_id = snapshot.modules[0].flows[0].id.clone();
+        let untouched_module_id = snapshot.modules[1].id.clone();
+
+        database
+            .commit_inspector_snapshot(&snapshot, 1, "test", "inspector-init", "request-1")
+            .expect("initial commit");
+        assert!(database
+            .list_entity_versions(&project_id, None, None, 50)
+            .expect("versions")
+            .is_empty());
+
+        database
+            .commit_inspector_snapshot(&snapshot, 2, "test", "inspector-sync", "request-2")
+            .expect("unchanged commit");
+        assert!(
+            database
+                .list_entity_versions(&project_id, None, None, 50)
+                .expect("versions")
+                .is_empty(),
+            "unchanged content must not record versions"
+        );
+
+        let mut updated = snapshot.clone();
+        updated.modules[0].summary = "Presents reconciled flows.".to_string();
+        updated.modules[0].revision = 2;
+        updated.modules[0].flows[0].graph.nodes[0].label = "Load snapshot".to_string();
+        updated.modules[0].flows[0].revision = 2;
+        database
+            .commit_inspector_snapshot(&updated, 3, "test", "inspector-sync", "request-3")
+            .expect("commit update");
+
+        let versions = database
+            .list_entity_versions(&project_id, None, None, 50)
+            .expect("versions");
+        assert_eq!(versions.len(), 2);
+        let module_summary = versions
+            .iter()
+            .find(|version| version.entity_type == "module")
+            .expect("module version");
+        assert_eq!(module_summary.entity_id, module_id);
+        assert_eq!(module_summary.revision, 1);
+        assert_eq!(module_summary.actor, "test");
+        assert_eq!(module_summary.source, "inspector-sync");
+        assert_eq!(module_summary.request_id.as_deref(), Some("request-3"));
+
+        let module_version = database
+            .get_entity_version(&module_summary.id)
+            .expect("module version detail");
+        assert_eq!(
+            module_version.snapshot_json["summary"],
+            "Presents flows and source evidence."
+        );
+        assert_eq!(module_version.snapshot_json["slug"], "inspector-ui");
+        assert_eq!(
+            module_version.snapshot_json["parentId"],
+            serde_json::json!(parent_id)
+        );
+        assert_eq!(module_version.snapshot_json["revision"], 1);
+
+        let flow_summary = versions
+            .iter()
+            .find(|version| version.entity_type == "flow")
+            .expect("flow version");
+        assert_eq!(flow_summary.entity_id, flow_id);
+        let flow_version = database
+            .get_entity_version(&flow_summary.id)
+            .expect("flow version detail");
+        assert_eq!(flow_version.revision, 1);
+        assert_eq!(
+            flow_version.snapshot_json["graph"]["nodes"][0]["label"],
+            "Read snapshot"
+        );
+        assert_eq!(
+            flow_version.snapshot_json["explanation"]["headline"],
+            "Preserve stable inspector identities."
+        );
+        assert_eq!(
+            flow_version.snapshot_json["sourceRefs"]
+                .as_array()
+                .expect("source refs")
+                .len(),
+            1
+        );
+
+        assert!(database
+            .list_entity_versions(&project_id, None, Some(&untouched_module_id), 50)
+            .expect("untouched module versions")
+            .is_empty());
+        assert_eq!(
+            database
+                .list_entity_versions(&project_id, Some("flow"), None, 50)
+                .expect("flow versions")
+                .len(),
+            1
+        );
+        assert!(matches!(
+            database.get_entity_version("missing-version"),
+            Err(AppError::NotFound(_))
+        ));
+
+        let connection = database.connect().expect("connect");
+        let versioned_events: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM mutation_events WHERE action = 'versioned'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("versioned mutation events");
+        assert_eq!(versioned_events, 2);
+    }
+
+    #[test]
+    fn issues_follow_revision_locking_and_resolution_lifecycle() {
+        use super::issues::{IssuePatch, IssueSeverity, IssueStatus};
+
+        let directory = TestDirectory::new("issues");
+        let project_root = directory.path().join("project");
+        fs::create_dir(&project_root).expect("create project root");
+        let project = registered_project(&project_root);
+        let project_id = project.id.to_string();
+        let database = InspectorDatabase::new(directory.path().join(DATABASE_FILE));
+        database.initialize().expect("initialize");
+        database
+            .import_registered_projects(&[project])
+            .expect("import project");
+        let snapshot = inspector_snapshot(&project_id);
+        let module_id = snapshot.modules[0].id.clone();
+        let flow_id = snapshot.modules[0].flows[0].id.clone();
+        database
+            .commit_inspector_snapshot(&snapshot, 1, "test", "inspector-init", "request-1")
+            .expect("initial commit");
+
+        let issue = database
+            .create_issue(
+                &project_id,
+                &module_id,
+                Some(&flow_id),
+                Some(1),
+                "Crash on refresh",
+                "Refreshing with stale evidence panics.",
+                IssueSeverity::P0,
+                None,
+                Some("src/lib/inspector.ts"),
+                Some(3),
+                Some(18),
+                "test",
+                "inspector-review",
+                Some("issue-1"),
+            )
+            .expect("create issue");
+        assert_eq!(issue.revision, 1);
+        assert_eq!(issue.status, IssueStatus::Open);
+        assert_eq!(issue.module_revision, Some(1));
+        assert!(issue.resolved_at.is_none());
+        assert_eq!(
+            Uuid::parse_str(&issue.id).expect("issue UUID").get_version_num(),
+            7
+        );
+
+        assert!(matches!(
+            database.create_issue(
+                &project_id,
+                "missing-module",
+                None,
+                None,
+                "Orphan",
+                "",
+                IssueSeverity::P2,
+                None,
+                None,
+                None,
+                None,
+                "test",
+                "inspector-review",
+                None,
+            ),
+            Err(AppError::NotFound(_))
+        ));
+        assert!(matches!(
+            database.create_issue(
+                &project_id,
+                &module_id,
+                None,
+                None,
+                "Bad range",
+                "",
+                IssueSeverity::P1,
+                None,
+                None,
+                Some(10),
+                Some(5),
+                "test",
+                "inspector-review",
+                None,
+            ),
+            Err(AppError::Validation(_))
+        ));
+
+        let listed = database
+            .list_issues(&project_id, Some(&module_id), Some(IssueStatus::Open), 10)
+            .expect("list open issues");
+        assert_eq!(listed.len(), 1);
+        assert!(listed[0].archived_at.is_none());
+        assert!(database
+            .list_issues(&project_id, None, Some(IssueStatus::Resolved), 10)
+            .expect("list resolved issues")
+            .is_empty());
+
+        let conflict = database
+            .update_issue(
+                &issue.id,
+                99,
+                &IssuePatch::default(),
+                "test",
+                "inspector-review",
+                None,
+            )
+            .expect_err("stale revision must conflict");
+        assert!(matches!(conflict, AppError::RevisionConflict { .. }));
+
+        let resolved = database
+            .update_issue(
+                &issue.id,
+                1,
+                &IssuePatch {
+                    status: Some(IssueStatus::Resolved),
+                    ..IssuePatch::default()
+                },
+                "test",
+                "inspector-review",
+                Some("issue-2"),
+            )
+            .expect("resolve issue");
+        assert_eq!(resolved.revision, 2);
+        assert!(resolved.resolved_at.is_some());
+
+        let reopened = database
+            .update_issue(
+                &issue.id,
+                2,
+                &IssuePatch {
+                    title: Some("Crash on refresh (regression)".to_string()),
+                    status: Some(IssueStatus::Open),
+                    ..IssuePatch::default()
+                },
+                "test",
+                "inspector-review",
+                None,
+            )
+            .expect("reopen issue");
+        assert_eq!(reopened.revision, 3);
+        assert_eq!(reopened.title, "Crash on refresh (regression)");
+        assert!(reopened.resolved_at.is_none());
+
+        let archived = database
+            .archive_issue(&issue.id, 3, "test", "inspector-review", None)
+            .expect("archive issue");
+        assert_eq!(archived.revision, 4);
+        assert!(archived.archived_at.is_some());
+        assert!(database
+            .list_issues(&project_id, None, None, 10)
+            .expect("list after archive")
+            .is_empty());
+        assert_eq!(
+            database.get_issue(&issue.id).expect("get archived").archived_at,
+            archived.archived_at
+        );
+        assert!(matches!(
+            database.archive_issue(&issue.id, 4, "test", "inspector-review", None),
+            Err(AppError::NotFound(_))
+        ));
+        assert!(matches!(
+            database.get_issue("missing-issue"),
+            Err(AppError::NotFound(_))
+        ));
+
+        let connection = database.connect().expect("connect");
+        let issue_events: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM mutation_events WHERE entity_type = 'issue'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("issue mutation events");
+        assert_eq!(issue_events, 4);
     }
 
     #[test]

@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 pub const MIGRATION_1: &str = r#"
 CREATE TABLE IF NOT EXISTS projects (
@@ -157,4 +157,48 @@ CREATE TABLE IF NOT EXISTS mutation_requests (
     result_json TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+"#;
+
+pub const MIGRATION_3: &str = r#"
+CREATE TABLE IF NOT EXISTS entity_versions (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    entity_type TEXT NOT NULL CHECK (entity_type IN ('module', 'flow')),
+    entity_id TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    snapshot_json TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    source TEXT NOT NULL,
+    request_id TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS issues (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    module_id TEXT NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    flow_id TEXT REFERENCES flows(id) ON DELETE CASCADE,
+    module_revision INTEGER,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    severity TEXT NOT NULL CHECK (severity IN ('p0', 'p1', 'p2')),
+    status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'wontfix')),
+    path TEXT,
+    start_line INTEGER CHECK (start_line > 0),
+    end_line INTEGER CHECK (end_line >= start_line),
+    actor TEXT NOT NULL,
+    source TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    resolved_at TEXT,
+    archived_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_entity_versions_entity
+    ON entity_versions(entity_type, entity_id, revision DESC);
+CREATE INDEX IF NOT EXISTS idx_entity_versions_project
+    ON entity_versions(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_issues_module ON issues(module_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_issues_project ON issues(project_id, created_at DESC);
 "#;
