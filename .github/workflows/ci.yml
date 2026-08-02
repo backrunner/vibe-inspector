@@ -37,6 +37,9 @@ jobs:
       - run: pnpm run test
       - run: pnpm run build
       - run: pnpm run check:bundle-budget
+      # The lib build script validates externalBin sidecars, so plain cargo
+      # clippy/test need the debug tray/MCP binaries prepared first.
+      - run: pnpm run prepare:tray:dev
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml
