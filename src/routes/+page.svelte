@@ -3,17 +3,19 @@
   import * as Tooltip from '$lib/components/ui/tooltip';
   import WindowTitlebar from '$components/shell/WindowTitlebar.svelte';
   import AppShellSkeleton from '$components/shell/AppShellSkeleton.svelte';
-  import ProjectOnboarding from '$components/projects/ProjectOnboarding.svelte';
-  import WorkspaceRestoreError from '$components/projects/WorkspaceRestoreError.svelte';
   import { inspectorStore } from '$stores/inspector.svelte';
 
   const store = inspectorStore;
   let RegisteredWorkspace = $state<Component>();
+  let ProjectOnboarding = $state<Component>();
+  let WorkspaceRestoreError = $state<Component>();
   let ProjectPickerDialog = $state<Component>();
   let ActivityDialog = $state<Component>();
   let SettingsDialog = $state<Component>();
   let ShortcutsDialog = $state<Component>();
   let registeredWorkspaceLoad: Promise<void> | undefined;
+  let onboardingLoad: Promise<void> | undefined;
+  let restoreErrorLoad: Promise<void> | undefined;
   let projectPickerLoad: Promise<void> | undefined;
   let activityLoad: Promise<void> | undefined;
   let settingsLoad: Promise<void> | undefined;
@@ -23,6 +25,22 @@
     return (registeredWorkspaceLoad ??= import('$components/shell/RegisteredWorkspace.svelte').then(
       (module) => {
         RegisteredWorkspace = module.default;
+      },
+    ));
+  }
+
+  function loadOnboarding() {
+    return (onboardingLoad ??= import('$components/projects/ProjectOnboarding.svelte').then(
+      (module) => {
+        ProjectOnboarding = module.default;
+      },
+    ));
+  }
+
+  function loadRestoreError() {
+    return (restoreErrorLoad ??= import('$components/projects/WorkspaceRestoreError.svelte').then(
+      (module) => {
+        WorkspaceRestoreError = module.default;
       },
     ));
   }
@@ -58,6 +76,9 @@
   onMount(() => {
     const url = new URL(window.location.href);
     store.hydrateViewState(url);
+    // The workspace is needed in the common case; load it in parallel with
+    // project hydration instead of waiting for the snapshot first.
+    void loadRegisteredWorkspace();
     if (url.searchParams.has('demo')) store.loadDemoWorkspace();
     else void store.restoreRegisteredProjects();
 
@@ -94,6 +115,10 @@
     if (store.workspaceHydrated && !store.workspaceError && !store.needsOnboarding) {
       void loadRegisteredWorkspace();
     }
+    if (store.workspaceHydrated && store.workspaceError) void loadRestoreError();
+    if (store.workspaceHydrated && !store.workspaceError && store.needsOnboarding) {
+      void loadOnboarding();
+    }
     if (store.projectPickerOpen) void loadProjectPicker();
     if (store.activityOpen) void loadActivity();
     if (store.settingsOpen) void loadSettings();
@@ -116,9 +141,9 @@
       {#if !store.workspaceHydrated}
         <AppShellSkeleton />
       {:else if store.workspaceError}
-        <WorkspaceRestoreError />
+        {#if WorkspaceRestoreError}<WorkspaceRestoreError />{:else}<AppShellSkeleton />{/if}
       {:else if store.needsOnboarding}
-        <ProjectOnboarding />
+        {#if ProjectOnboarding}<ProjectOnboarding />{:else}<AppShellSkeleton />{/if}
       {:else if RegisteredWorkspace}
         <RegisteredWorkspace />
       {:else}
