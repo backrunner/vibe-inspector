@@ -35,6 +35,11 @@ const SKILL_TEMPLATES: &[SkillTemplate] = &[
         skill_md: include_str!("../templates/skills/inspector-clarify/SKILL.md"),
         openai_yaml: include_str!("../templates/skills/inspector-clarify/agents/openai.yaml"),
     },
+    SkillTemplate {
+        id: "inspector-review",
+        skill_md: include_str!("../templates/skills/inspector-review/SKILL.md"),
+        openai_yaml: include_str!("../templates/skills/inspector-review/agents/openai.yaml"),
+    },
 ];
 
 struct SkillTemplate {
@@ -984,7 +989,7 @@ mod tests {
             home.join(".codex/config.toml").display().to_string()
         );
         assert!(!codex.mcp_configured);
-        assert_eq!(codex.skill_states.len(), 3);
+        assert_eq!(codex.skill_states.len(), 4);
         assert!(codex
             .skill_states
             .iter()

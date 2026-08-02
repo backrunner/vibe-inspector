@@ -27,7 +27,7 @@ The independent menu-bar helper keeps authenticated MCP tools available even whe
 - Hierarchical source tree and read-only Monaco viewer with exact line-range highlighting.
 - SQLite persistence with versioned mutations, audit history, migration backups, and recovery checks.
 - Independent macOS tray runtime with authenticated loopback MCP, login-item control, and graceful shutdown.
-- Twenty-one MCP tools plus `$inspector-init`, `$inspector-sync`, and `$inspector-clarify` project skills.
+- Thirty MCP tools plus `$inspector-init`, `$inspector-sync`, `$inspector-clarify`, and `$inspector-review` project skills.
 - Zinc-based light and dark themes built with Svelte 5, shadcn-svelte, and Bits UI.
 
 ## Architecture

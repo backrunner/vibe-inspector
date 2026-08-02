@@ -1,0 +1,12 @@
+interface:
+  display_name: "Inspector Review"
+  short_description: "Review a module and record severe issues"
+  default_prompt: "Use $inspector-review to review the selected inspector module and record severe issues."
+policy:
+  allow_implicit_invocation: false
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "vibe-inspector"
+      description: "Authenticated local VibeInspector project and command tools"
+      transport: "stdio"

@@ -54,6 +54,7 @@ Acceptance: deep links preserve project, module, flow, file, and line-range sele
 - `$inspector-init [scope prompt]` creates an initial module/flow model for the requested scope or the whole repository when no scope is supplied.
 - `$inspector-sync [scope prompt]` refreshes evidence and explanations for the current conversation context; structural changes require a change proposal and explicit confirmation.
 - `$inspector-clarify [scope prompt]` decomposes an overly broad module or flow while preserving IDs and history for existing entities.
+- `$inspector-review [scope prompt]` refreshes the selected module's evidence, reviews its logic against the source, and records confirmed problems as severity-tagged issue items with an updatable status.
 
 Acceptance: commands are idempotent by conversation turn and scope fingerprint; every mutation records source command, model metadata, timestamp, and changed entity IDs.
 
