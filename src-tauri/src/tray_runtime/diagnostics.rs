@@ -17,6 +17,7 @@ const MAX_DIAGNOSTICS_BYTES: u64 = 512 * 1024;
 #[serde(rename_all = "kebab-case")]
 pub enum DiagnosticProcess {
     Desktop,
+    Mcp,
     Tray,
 }
 
@@ -29,6 +30,7 @@ pub enum DiagnosticEvent {
     McpUnavailable,
     TrayHelperReady,
     TrayHelperUnavailable,
+    TrayStartSuppressed,
     Shutdown,
 }
 

@@ -22,10 +22,11 @@ use tray_icon::{
 use vibe_inspector_lib::{
     storage::InspectorDatabase,
     tray_runtime::{
-        bind_mcp_listener, claim_control_socket, configured_mcp_bind, install_local_panic_hook,
-        is_login_item_enabled, load_or_create_bearer_token, open_desktop, record_diagnostic,
-        serve_control_socket, serve_mcp_http, set_login_item_enabled, ControlAction,
-        DiagnosticEvent, DiagnosticProcess, SocketClaim, TrayError, TrayHealth, TrayPaths,
+        bind_mcp_listener, claim_control_socket, clear_quit_intent, configured_mcp_bind,
+        install_local_panic_hook, is_login_item_enabled, load_or_create_bearer_token,
+        mark_quit_intent, open_desktop, record_diagnostic, serve_control_socket, serve_mcp_http,
+        set_login_item_enabled, ControlAction, DiagnosticEvent, DiagnosticProcess, SocketClaim,
+        TrayError, TrayHealth, TrayPaths,
     },
 };
 
@@ -52,6 +53,9 @@ fn run_tray() -> Result<(), TrayError> {
         SocketClaim::AlreadyRunning => return Ok(()),
         SocketClaim::Claimed(listener) => listener,
     };
+    // Any tray start is an explicit activation (desktop launch, login item, or
+    // manual start), so a previously recorded quit intent no longer applies.
+    let _ = clear_quit_intent(&paths);
     let bearer_token = load_or_create_bearer_token(&paths)?;
     let database = InspectorDatabase::for_macos_user()
         .map_err(|error| TrayError::Runtime(error.to_string()))?;
@@ -303,6 +307,7 @@ fn begin_shutdown(
     }
     *quitting = true;
     if let Ok(paths) = TrayPaths::for_macos_user() {
+        let _ = mark_quit_intent(&paths);
         let _ = record_diagnostic(&paths, DiagnosticProcess::Tray, DiagnosticEvent::Shutdown);
     }
     status_item.set_text("MCP: Stopping...");

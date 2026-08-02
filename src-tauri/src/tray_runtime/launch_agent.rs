@@ -58,6 +58,8 @@ fn install_launch_agent(paths: &TrayPaths, executable: &Path) -> Result<(), Tray
             "launchctl bootstrap exited with {status}"
         )));
     }
+    // Enabling the login item is an explicit user action.
+    let _ = super::clear_quit_intent(paths);
     Ok(())
 }
 

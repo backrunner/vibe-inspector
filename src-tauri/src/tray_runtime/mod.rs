@@ -5,13 +5,17 @@ mod http;
 mod ipc;
 mod launch_agent;
 mod paths;
+mod quit_intent;
 
 use std::{io, net::SocketAddr};
 
 use thiserror::Error;
 
 pub use auth::load_or_create_bearer_token;
-pub use desktop::{ensure_tray_running, open_desktop};
+pub use desktop::{
+    ensure_tray_running, ensure_tray_running_at, ensure_tray_running_unless_quit, open_desktop,
+    resolve_tray_executable, EnsureTrayOutcome,
+};
 pub use diagnostics::{
     install_local_panic_hook, record_diagnostic, DiagnosticEvent, DiagnosticProcess,
 };
@@ -22,6 +26,7 @@ pub use ipc::{
 };
 pub use launch_agent::{is_login_item_enabled, set_login_item_enabled};
 pub use paths::TrayPaths;
+pub use quit_intent::{clear_quit_intent, mark_quit_intent, quit_intent_present};
 
 pub const DEFAULT_MCP_BIND: &str = "127.0.0.1:47821";
 

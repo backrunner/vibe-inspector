@@ -11,6 +11,7 @@ pub struct TrayPaths {
     pub socket_path: PathBuf,
     pub token_path: PathBuf,
     pub endpoint_path: PathBuf,
+    pub quit_intent_path: PathBuf,
     pub launch_agent_path: PathBuf,
 }
 
@@ -44,6 +45,7 @@ impl TrayPaths {
             socket_path: app_support_dir.join("tray.sock"),
             token_path: app_support_dir.join("mcp-token"),
             endpoint_path: app_support_dir.join("mcp-endpoint.json"),
+            quit_intent_path: app_support_dir.join("tray-quit.intent"),
             launch_agent_path: launch_agents_dir.join(format!("{LAUNCH_AGENT_LABEL}.plist")),
             app_support_dir,
         }
