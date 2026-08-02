@@ -89,6 +89,44 @@ type Provenance = {
   confidence?: number;
   evidenceIds: string[];
 };
+
+type EntityVersionSummary = {
+  id: string;
+  projectId: string;
+  entityType: 'module' | 'flow';
+  entityId: string;
+  revision: number;
+  actor: string;
+  source: string;
+  requestId?: string;
+  createdAt: string;
+};
+
+type EntityVersion = EntityVersionSummary & {
+  snapshotJson: unknown; // serialized entity snapshot as of `revision`
+};
+
+type Issue = {
+  id: string;
+  projectId: string;
+  moduleId: string;
+  flowId?: string;
+  moduleRevision?: number;
+  title: string;
+  description: string;
+  severity: 'p0' | 'p1' | 'p2';
+  status: 'open' | 'resolved' | 'wontfix';
+  path?: string;
+  startLine?: number;
+  endLine?: number;
+  actor: string;
+  source: string;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+  archivedAt?: string;
+};
 ```
 
 ## 3. MCP tools
@@ -106,6 +144,9 @@ Read tools:
 - `inspector.source.locate`: resolve a code file (absolute path, or `projectId` plus relative path, with an optional line range) to its containing allowed project and the modules/flows whose source references cover it; also returns CodeGraph-related files when the project has an index.
 - `inspector.source.related`: CodeGraph dependency/dependent files for project-relative source paths; read-only and empty when no `.codegraph/codegraph.db` exists.
 - `inspector.activity.list`: command runs, sync status, and audit events.
+- `inspector.version.list`: recorded entity versions for a project, newest first, filterable by `entityType`/`entityId`.
+- `inspector.version.get`: one entity version with its snapshot payload; versions of other projects answer `not_found`.
+- `inspector.issue.list`: active issues for a project, filterable by `moduleId` and `status`.
 
 Mutation tools:
 
@@ -114,6 +155,7 @@ Mutation tools:
 - `inspector.flow.create`, `.update`, `.archive`
 - `inspector.sourceRef.upsert`, `.archive`
 - `inspector.explanation.upsert`
+- `inspector.issue.create`, `.update`, `.archive`
 - `inspector.command.run` for a registered slash command; it must not execute arbitrary text as a shell command.
 
 MCP tools must call the same domain services as the UI. They may not mutate SQLite directly. `inspector.source.read` returns UTF-8 text plus a content hash and never returns data outside the registered project root.
@@ -121,6 +163,8 @@ MCP tools must call the same domain services as the UI. They may not mutate SQLi
 `inspector.project.create` has ensure semantics: it canonicalizes the supplied root, requires project root markers, and returns the already-registered project for the same canonical root instead of failing; a project previously archived with the same root is revived (cleared `archived_at`, bumped revision) rather than rejected. Agents call it to auto-import the project they are running in when `inspector.project.list` has no match; a project registered this way joins the calling session's allow-list immediately. Projects created through MCP live in SQLite only — desktop `register_projects` reuses the existing SQLite project ID for roots it already knows, and agent allow-list syncs (including fresh installs) always cover the union of registry and SQLite project IDs.
 
 `inspector.module.create` has ensure semantics on the module slug: when an active module with the same slug already exists in the project, the tool returns that module unchanged with `reusedExisting: true` instead of creating a duplicate. Snapshot commits (including `inspector.command.run` proposals) are validated to reject duplicate module slugs. Callers must still list existing modules first and prefer `inspector.module.update` for entities that already exist.
+
+`inspector.issue.*` tools manage review issue entries, which live outside the `InspectorSnapshot`: they do not take `expectedProjectRevision` and never bump the project revision. `inspector.issue.create` fills `moduleRevision` from the module's current revision server-side and defaults `source` to `mcp` (callers such as the review skill may pass their own, e.g. `inspector-review`). `inspector.issue.update`/`.archive` use entity-level `expectedRevision` optimistic locking; in `update`, `flowId`/`path`/`startLine`/`endLine` are tri-state — omitted leaves the value untouched, explicit `null` clears it. All three are idempotent for the same `requestId`, and issue IDs of other projects answer `not_found`.
 
 The desktop UI is a read-only Inspector client. It does not expose lifecycle badges for `draft`,
 `ready`, `stale`, or `needs-review`, and it does not expose a manual content-refresh action. Inspector
@@ -130,9 +174,10 @@ its window regains focus while preserving the current selection.
 ## 4. Agent skill behavior
 
 Codex discovers the repo-owned skills under `.agents/skills`. Users invoke them as
-`$inspector-init`, `$inspector-sync`, and `$inspector-clarify`. Arbitrary project-owned `/name`
+`$inspector-init`, `$inspector-sync`, `$inspector-clarify`, and `$inspector-review`. Arbitrary project-owned `/name`
 slash commands are not a supported Codex extension surface. The stable MCP/domain command names
-remain `inspector-init`, `inspector-sync`, and `inspector-clarify`.
+remain `inspector-init`, `inspector-sync`, and `inspector-clarify`; `inspector-review` is a skill-only
+workflow that records findings through the `inspector.issue.*` tools rather than a snapshot command.
 
 ### `$inspector-init [prompt]`
 
@@ -145,6 +190,10 @@ Input context: current project and conversation module/flow context. Output: ref
 ### `$inspector-clarify [prompt]`
 
 Input context: a selected module or flow. Output: narrower child modules/flows and updated parent summaries. Existing entities remain addressable; superseded entities are archived, not deleted. The command should reject a prompt that has no selected scope and no explicit target.
+
+### `$inspector-review [prompt]`
+
+Input context: a selected module. The skill first refreshes stale evidence through the `$inspector-sync` workflow, then reviews each flow's graph and explanation against the actual source read through `inspector.source.read`. Output: confirmed problems recorded as issue items via `inspector.issue.create` with `source: "inspector-review"`, anchored to the module's current revision. Severity is `p0` for crashes, data loss, security exposure, or incorrect core logic (`p1`/`p2` for lesser findings); status flows `open` → `resolved`/`wontfix` and can be updated from both MCP (`inspector.issue.update`) and the desktop UI. Repeating a review must deduplicate against `inspector.issue.list` and update existing open issues instead of creating duplicates.
 
 ## 5. Safety and authorization
 

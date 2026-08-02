@@ -67,7 +67,7 @@ const listed = await fetch(endpoint.url, {
 const listResponse = parseMcpResponse(await listed.text());
 const toolNames = listResponse.result?.tools?.map((tool) => tool.name) || [];
 assert(listed.status === 200, `tools/list returned ${listed.status}`);
-assert(toolNames.length === 21, `expected 21 tools, received ${toolNames.length}`);
+assert(toolNames.length === 30, `expected 30 tools, received ${toolNames.length}`);
 assert(toolNames.includes('inspector.source.read'), 'read-only source tool is missing');
 assert(toolNames.includes('inspector.command.run'), 'Inspector command tool is missing');
 

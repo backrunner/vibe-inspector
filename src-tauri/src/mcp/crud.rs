@@ -12,7 +12,10 @@ use crate::{
         InspectorSnapshot, InspectorSourceRef, Provenance, ProvenanceSource, SourceRefStatus,
     },
     project_discovery::{discover_projects, DiscoverProjectsInput, DiscoveryMode},
-    storage::{InspectorDatabase, ProjectStatus, StoredProject},
+    storage::{
+        issues::{Issue, IssuePatch, IssueSeverity, IssueStatus},
+        InspectorDatabase, ProjectStatus, StoredProject,
+    },
 };
 
 #[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
@@ -163,6 +166,66 @@ pub struct ExplanationUpsertInput {
     pub confidence: Option<f64>,
     #[serde(default)]
     pub evidence_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueMutationResult {
+    pub request_id: String,
+    pub issue_id: String,
+    pub issue: Issue,
+    /// Issues never reuse existing rows; this stays false and exists for
+    /// parity with the other mutation results.
+    #[serde(default)]
+    pub reused_existing: bool,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueCreateInput {
+    pub request_id: String,
+    pub project_id: String,
+    pub module_id: String,
+    pub flow_id: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub severity: IssueSeverity,
+    pub status: Option<IssueStatus>,
+    pub path: Option<String>,
+    pub start_line: Option<usize>,
+    pub end_line: Option<usize>,
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueUpdateInput {
+    pub request_id: String,
+    pub project_id: String,
+    pub issue_id: String,
+    pub expected_revision: u64,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub severity: Option<IssueSeverity>,
+    pub status: Option<IssueStatus>,
+    /// Outer None leaves the field untouched; Some(None) clears it.
+    #[serde(default)]
+    pub flow_id: Option<Option<String>>,
+    #[serde(default)]
+    pub path: Option<Option<String>>,
+    #[serde(default)]
+    pub start_line: Option<Option<usize>>,
+    #[serde(default)]
+    pub end_line: Option<Option<usize>>,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueArchiveInput {
+    pub request_id: String,
+    pub project_id: String,
+    pub issue_id: String,
+    pub expected_revision: u64,
 }
 
 pub fn project_create(
@@ -806,6 +869,137 @@ pub fn explanation_upsert(
     )
 }
 
+pub fn issue_create(
+    database: &InspectorDatabase,
+    input: IssueCreateInput,
+    actor: &str,
+) -> Result<IssueMutationResult, AppError> {
+    mutation(
+        database,
+        &input.request_id,
+        &input.project_id,
+        "inspector.issue.create",
+        actor,
+        || {
+            let module_revision = database
+                .load_inspector_snapshot(&input.project_id)?
+                .modules
+                .iter()
+                .find(|module| module.id == input.module_id)
+                .map(|module| module.revision);
+            let issue = database.create_issue(
+                &input.project_id,
+                &input.module_id,
+                input.flow_id.as_deref(),
+                module_revision,
+                &input.title,
+                input.description.as_deref().unwrap_or_default(),
+                input.severity,
+                input.status,
+                input.path.as_deref(),
+                input.start_line,
+                input.end_line,
+                actor,
+                issue_source(input.source.as_deref()),
+                Some(&input.request_id),
+            )?;
+            Ok(issue_result(&input.request_id, issue))
+        },
+    )
+}
+
+pub fn issue_update(
+    database: &InspectorDatabase,
+    input: IssueUpdateInput,
+    actor: &str,
+) -> Result<IssueMutationResult, AppError> {
+    mutation(
+        database,
+        &input.request_id,
+        &input.project_id,
+        "inspector.issue.update",
+        actor,
+        || {
+            require_project_issue(database, &input.project_id, &input.issue_id)?;
+            let patch = IssuePatch {
+                title: input.title.clone(),
+                description: input.description.clone(),
+                severity: input.severity,
+                status: input.status,
+                flow_id: input.flow_id.clone(),
+                path: input.path.clone(),
+                start_line: input.start_line,
+                end_line: input.end_line,
+            };
+            let issue = database.update_issue(
+                &input.issue_id,
+                input.expected_revision,
+                &patch,
+                actor,
+                "mcp",
+                Some(&input.request_id),
+            )?;
+            Ok(issue_result(&input.request_id, issue))
+        },
+    )
+}
+
+pub fn issue_archive(
+    database: &InspectorDatabase,
+    input: IssueArchiveInput,
+    actor: &str,
+) -> Result<IssueMutationResult, AppError> {
+    mutation(
+        database,
+        &input.request_id,
+        &input.project_id,
+        "inspector.issue.archive",
+        actor,
+        || {
+            require_project_issue(database, &input.project_id, &input.issue_id)?;
+            let issue = database.archive_issue(
+                &input.issue_id,
+                input.expected_revision,
+                actor,
+                "mcp",
+                Some(&input.request_id),
+            )?;
+            Ok(issue_result(&input.request_id, issue))
+        },
+    )
+}
+
+fn issue_result(request_id: &str, issue: Issue) -> IssueMutationResult {
+    IssueMutationResult {
+        request_id: request_id.to_string(),
+        issue_id: issue.id.clone(),
+        issue,
+        reused_existing: false,
+    }
+}
+
+fn issue_source(source: Option<&str>) -> &str {
+    source
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("mcp")
+}
+
+fn require_project_issue(
+    database: &InspectorDatabase,
+    project_id: &str,
+    issue_id: &str,
+) -> Result<(), AppError> {
+    let issue = database.get_issue(issue_id)?;
+    if issue.project_id == project_id {
+        Ok(())
+    } else {
+        // Cross-project issues are hidden behind NotFound so one session
+        // cannot probe another project's issue IDs.
+        Err(AppError::NotFound(format!("issue {issue_id}")))
+    }
+}
+
 fn mutation<T, F>(
     database: &InspectorDatabase,
     request_id: &str,
@@ -1371,5 +1565,243 @@ mod tests {
         )
         .expect_err("path traversal");
         assert!(matches!(traversal, AppError::PathTraversal(_)));
+    }
+
+    #[test]
+    fn issue_create_is_idempotent_and_records_the_module_revision() {
+        let (_directory, database, project_id, _root) = setup("issue-create");
+        let module = module_create(
+            &database,
+            ModuleCreateInput {
+                request_id: "module-create".to_string(),
+                project_id: project_id.clone(),
+                expected_project_revision: 1,
+                parent_id: None,
+                name: "Inspector".to_string(),
+                slug: "inspector".to_string(),
+                summary: "Inspector domain.".to_string(),
+                status: EntityStatus::Ready,
+            },
+            "mcp:test",
+        )
+        .expect("module");
+        let input = IssueCreateInput {
+            request_id: "issue-create".to_string(),
+            project_id: project_id.clone(),
+            module_id: module.entity_id.clone(),
+            flow_id: None,
+            title: "Stale evidence".to_string(),
+            description: Some("The source range moved.".to_string()),
+            severity: IssueSeverity::P1,
+            status: None,
+            path: Some("src/main.rs".to_string()),
+            start_line: Some(10),
+            end_line: Some(12),
+            source: Some("inspector-review".to_string()),
+        };
+
+        let created = issue_create(&database, input.clone(), "mcp:test").expect("create issue");
+        assert_eq!(created.issue.revision, 1);
+        assert_eq!(created.issue.status, IssueStatus::Open);
+        assert_eq!(created.issue.module_revision, Some(1));
+        assert_eq!(created.issue.source, "inspector-review");
+        assert!(!created.reused_existing);
+
+        let replayed = issue_create(&database, input, "mcp:test").expect("replay create");
+        assert_eq!(replayed.issue_id, created.issue_id);
+        assert_eq!(
+            database
+                .list_issues(&project_id, None, None, 50)
+                .expect("issues")
+                .len(),
+            1,
+            "a replayed requestId must not insert a second row"
+        );
+        assert_eq!(
+            database
+                .load_inspector_snapshot(&project_id)
+                .expect("snapshot")
+                .project_revision,
+            2,
+            "issues do not touch the project revision"
+        );
+    }
+
+    #[test]
+    fn issue_update_enforces_revisions_and_tracks_status_transitions() {
+        let (_directory, database, project_id, _root) = setup("issue-update");
+        let module = module_create(
+            &database,
+            ModuleCreateInput {
+                request_id: "module-create".to_string(),
+                project_id: project_id.clone(),
+                expected_project_revision: 1,
+                parent_id: None,
+                name: "Inspector".to_string(),
+                slug: "inspector".to_string(),
+                summary: "Inspector domain.".to_string(),
+                status: EntityStatus::Ready,
+            },
+            "mcp:test",
+        )
+        .expect("module");
+        let created = issue_create(
+            &database,
+            IssueCreateInput {
+                request_id: "issue-create".to_string(),
+                project_id: project_id.clone(),
+                module_id: module.entity_id,
+                flow_id: None,
+                title: "Missing flow".to_string(),
+                description: None,
+                severity: IssueSeverity::P2,
+                status: None,
+                path: None,
+                start_line: None,
+                end_line: None,
+                source: None,
+            },
+            "mcp:test",
+        )
+        .expect("create issue");
+        assert_eq!(created.issue.source, "mcp", "the default source is mcp");
+
+        let resolved = issue_update(
+            &database,
+            IssueUpdateInput {
+                request_id: "issue-resolve".to_string(),
+                project_id: project_id.clone(),
+                issue_id: created.issue_id.clone(),
+                expected_revision: 1,
+                title: None,
+                description: None,
+                severity: None,
+                status: Some(IssueStatus::Resolved),
+                flow_id: None,
+                path: None,
+                start_line: None,
+                end_line: None,
+            },
+            "mcp:test",
+        )
+        .expect("resolve issue");
+        assert_eq!(resolved.issue.status, IssueStatus::Resolved);
+        assert_eq!(resolved.issue.revision, 2);
+        assert!(resolved.issue.resolved_at.is_some());
+
+        let replayed = issue_update(
+            &database,
+            IssueUpdateInput {
+                request_id: "issue-resolve".to_string(),
+                project_id: project_id.clone(),
+                issue_id: created.issue_id.clone(),
+                expected_revision: 1,
+                title: None,
+                description: None,
+                severity: None,
+                status: Some(IssueStatus::Resolved),
+                flow_id: None,
+                path: None,
+                start_line: None,
+                end_line: None,
+            },
+            "mcp:test",
+        )
+        .expect("replay resolve");
+        assert_eq!(replayed.issue.revision, 2, "replay returns the cached result");
+
+        let conflict = issue_update(
+            &database,
+            IssueUpdateInput {
+                request_id: "issue-conflict".to_string(),
+                project_id: project_id.clone(),
+                issue_id: created.issue_id.clone(),
+                expected_revision: 1,
+                title: None,
+                description: None,
+                severity: None,
+                status: Some(IssueStatus::Wontfix),
+                flow_id: None,
+                path: None,
+                start_line: None,
+                end_line: None,
+            },
+            "mcp:test",
+        )
+        .expect_err("stale revision");
+        assert!(matches!(conflict, AppError::RevisionConflict { .. }));
+
+        let reopened = issue_update(
+            &database,
+            IssueUpdateInput {
+                request_id: "issue-reopen".to_string(),
+                project_id: project_id.clone(),
+                issue_id: created.issue_id.clone(),
+                expected_revision: 2,
+                title: None,
+                description: None,
+                severity: None,
+                status: Some(IssueStatus::Open),
+                flow_id: None,
+                path: None,
+                start_line: None,
+                end_line: None,
+            },
+            "mcp:test",
+        )
+        .expect("reopen issue");
+        assert_eq!(reopened.issue.status, IssueStatus::Open);
+        assert!(reopened.issue.resolved_at.is_none());
+
+        let foreign = issue_update(
+            &database,
+            IssueUpdateInput {
+                request_id: "issue-foreign".to_string(),
+                project_id: "some-other-project".to_string(),
+                issue_id: created.issue_id.clone(),
+                expected_revision: 3,
+                title: None,
+                description: None,
+                severity: None,
+                status: Some(IssueStatus::Resolved),
+                flow_id: None,
+                path: None,
+                start_line: None,
+                end_line: None,
+            },
+            "mcp:test",
+        )
+        .expect_err("issue of another project");
+        assert!(matches!(foreign, AppError::NotFound(_)));
+
+        let archived = issue_archive(
+            &database,
+            IssueArchiveInput {
+                request_id: "issue-archive".to_string(),
+                project_id: project_id.clone(),
+                issue_id: created.issue_id.clone(),
+                expected_revision: 3,
+            },
+            "mcp:test",
+        )
+        .expect("archive issue");
+        assert!(archived.issue.archived_at.is_some());
+        assert!(database
+            .list_issues(&project_id, None, None, 50)
+            .expect("issues")
+            .is_empty());
+
+        let archived_replay = issue_archive(
+            &database,
+            IssueArchiveInput {
+                request_id: "issue-archive".to_string(),
+                project_id,
+                issue_id: created.issue_id,
+                expected_revision: 3,
+            },
+            "mcp:test",
+        )
+        .expect("replay archive");
+        assert_eq!(archived_replay.issue.revision, archived.issue.revision);
     }
 }

@@ -23,7 +23,13 @@ use crate::{
         canonical_root, read_source_range, validated_relative_path, ReadSourceInput, SourceRange,
     },
     inspector::{EntityStatus, InspectorFlow, InspectorModule, InspectorSnapshot},
-    storage::{commands::StoredCommandRun, mcp::McpAuditEvent, InspectorDatabase, StoredProject},
+    storage::{
+        commands::StoredCommandRun,
+        issues::{Issue, IssueStatus},
+        mcp::McpAuditEvent,
+        versions::{EntityVersion, EntityVersionSummary},
+        InspectorDatabase, StoredProject,
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -320,6 +326,52 @@ pub struct FlowList {
 pub struct ActivityList {
     pub command_runs: Vec<StoredCommandRun>,
     pub audit_events: Vec<McpAuditEvent>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionListInput {
+    pub request_id: Option<String>,
+    pub project_id: String,
+    pub entity_type: Option<String>,
+    pub entity_id: Option<String>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionGetInput {
+    pub request_id: Option<String>,
+    pub project_id: String,
+    pub version_id: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueListInput {
+    pub request_id: Option<String>,
+    pub project_id: String,
+    pub module_id: Option<String>,
+    pub status: Option<IssueStatus>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionSummaryList {
+    pub versions: Vec<EntityVersionSummary>,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionDetail {
+    pub version: EntityVersion,
+}
+
+#[derive(Debug, Serialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IssueListResult {
+    pub issues: Vec<Issue>,
 }
 
 #[tool_router(router = tool_router)]
@@ -908,6 +960,150 @@ impl VibeInspectorMcp {
         )
         .await
     }
+
+    #[tool(
+        name = "inspector.version.list",
+        description = "List recorded entity versions for one project, newest first, optionally filtered by entityType and entityId"
+    )]
+    async fn version_list(
+        &self,
+        Parameters(input): Parameters<VersionListInput>,
+    ) -> Result<Json<VersionSummaryList>, String> {
+        let project_id = input.project_id.clone();
+        self.execute(
+            "inspector.version.list",
+            Some(project_id.clone()),
+            Vec::new(),
+            move |database| {
+                Ok(VersionSummaryList {
+                    versions: database.list_entity_versions(
+                        &project_id,
+                        input.entity_type.as_deref(),
+                        input.entity_id.as_deref(),
+                        input.limit.unwrap_or(50),
+                    )?,
+                })
+            },
+        )
+        .await
+    }
+
+    #[tool(
+        name = "inspector.version.get",
+        description = "Get one recorded entity version with its snapshot payload"
+    )]
+    async fn version_get(
+        &self,
+        Parameters(input): Parameters<VersionGetInput>,
+    ) -> Result<Json<VersionDetail>, String> {
+        let project_id = input.project_id.clone();
+        let entity_ids = vec![input.version_id.clone()];
+        self.execute(
+            "inspector.version.get",
+            Some(project_id.clone()),
+            entity_ids,
+            move |database| {
+                let version = database.get_entity_version(&input.version_id)?;
+                if version.project_id != project_id {
+                    // Hide versions of other projects so a session cannot
+                    // probe version IDs outside its allow-list.
+                    return Err(AppError::NotFound(format!(
+                        "entity version {}",
+                        input.version_id
+                    )));
+                }
+                Ok(VersionDetail { version })
+            },
+        )
+        .await
+    }
+
+    #[tool(
+        name = "inspector.issue.list",
+        description = "List active issues for one project, newest first, optionally filtered by moduleId and status"
+    )]
+    async fn issue_list(
+        &self,
+        Parameters(input): Parameters<IssueListInput>,
+    ) -> Result<Json<IssueListResult>, String> {
+        let project_id = input.project_id.clone();
+        self.execute(
+            "inspector.issue.list",
+            Some(project_id.clone()),
+            Vec::new(),
+            move |database| {
+                Ok(IssueListResult {
+                    issues: database.list_issues(
+                        &project_id,
+                        input.module_id.as_deref(),
+                        input.status,
+                        input.limit.unwrap_or(50),
+                    )?,
+                })
+            },
+        )
+        .await
+    }
+
+    #[tool(
+        name = "inspector.issue.create",
+        description = "Create an issue entry on a module with a server-generated UUIDv7 ID. Issues are not part of the Inspector snapshot and do not bump the project revision. Idempotent for the same requestId."
+    )]
+    async fn issue_create(
+        &self,
+        Parameters(input): Parameters<crud::IssueCreateInput>,
+    ) -> Result<Json<crud::IssueMutationResult>, String> {
+        let project_id = input.project_id.clone();
+        let entity_ids = vec![input.module_id.clone()];
+        let actor = format!("mcp:{}", self.authorization.session_id);
+        self.execute(
+            "inspector.issue.create",
+            Some(project_id),
+            entity_ids,
+            move |database| crud::issue_create(database, input, &actor),
+        )
+        .await
+    }
+
+    #[tool(
+        name = "inspector.issue.update",
+        description = "Update an issue entry with entity-level optimistic revision checking. Idempotent for the same requestId."
+    )]
+    async fn issue_update(
+        &self,
+        Parameters(input): Parameters<crud::IssueUpdateInput>,
+    ) -> Result<Json<crud::IssueMutationResult>, String> {
+        let project_id = input.project_id.clone();
+        let entity_ids = vec![input.issue_id.clone()];
+        let actor = format!("mcp:{}", self.authorization.session_id);
+        self.execute(
+            "inspector.issue.update",
+            Some(project_id),
+            entity_ids,
+            move |database| crud::issue_update(database, input, &actor),
+        )
+        .await
+    }
+
+    #[tool(
+        name = "inspector.issue.archive",
+        description = "Soft-archive an issue entry with entity-level optimistic revision checking. Idempotent for the same requestId."
+    )]
+    async fn issue_archive(
+        &self,
+        Parameters(input): Parameters<crud::IssueArchiveInput>,
+    ) -> Result<Json<crud::IssueMutationResult>, String> {
+        let project_id = input.project_id.clone();
+        let entity_ids = vec![input.issue_id.clone()];
+        let actor = format!("mcp:{}", self.authorization.session_id);
+        self.execute(
+            "inspector.issue.archive",
+            Some(project_id),
+            entity_ids,
+            move |database| crud::issue_archive(database, input, &actor),
+        )
+        .await
+    }
 }
 
 #[tool_handler(router = self.tool_router)]
@@ -1421,6 +1617,174 @@ mod tests {
         assert!(matches!(missing_start, AppError::Validation(_)));
     }
 
+    #[tokio::test]
+    async fn version_tools_return_recorded_versions_after_a_module_update() {
+        let (_directory, database, project_id, root) = fixture("versions");
+        let module_id = seed_module_with_source(&database, &project_id, &root);
+        crud::module_update(
+            &database,
+            crud::ModuleUpdateInput {
+                request_id: "module-update".to_string(),
+                project_id: project_id.clone(),
+                expected_project_revision: 4,
+                module_id: module_id.clone(),
+                expected_revision: 1,
+                parent_id: None,
+                clear_parent: false,
+                name: None,
+                slug: None,
+                summary: Some("Updated Inspector domain.".to_string()),
+                status: None,
+            },
+            "test",
+        )
+        .expect("update module");
+        let server = VibeInspectorMcp::new(
+            database.clone(),
+            McpAuthorization::new("session", [project_id.clone()]).expect("authorization"),
+        );
+
+        let listed = server
+            .version_list(Parameters(VersionListInput {
+                request_id: None,
+                project_id: project_id.clone(),
+                entity_type: Some("module".to_string()),
+                entity_id: Some(module_id.clone()),
+                limit: None,
+            }))
+            .await
+            .expect("list versions");
+        assert_eq!(listed.0.versions.len(), 1);
+        let summary = &listed.0.versions[0];
+        assert_eq!(summary.entity_id, module_id);
+        assert_eq!(summary.revision, 1, "the update records the old snapshot");
+
+        let fetched = server
+            .version_get(Parameters(VersionGetInput {
+                request_id: None,
+                project_id: project_id.clone(),
+                version_id: summary.id.clone(),
+            }))
+            .await
+            .expect("get version");
+        assert_eq!(fetched.0.version.revision, 1);
+        assert_eq!(
+            fetched.0.version.snapshot_json["summary"],
+            serde_json::json!("Inspector domain."),
+            "the stored snapshot predates the update"
+        );
+
+        let missing = server
+            .version_get(Parameters(VersionGetInput {
+                request_id: None,
+                project_id,
+                version_id: "does-not-exist".to_string(),
+            }))
+            .await
+            .err()
+            .expect("unknown version");
+        assert!(missing.contains("\"code\":\"not_found\""), "{missing}");
+    }
+
+    #[tokio::test]
+    async fn version_get_hides_versions_from_other_projects() {
+        let (_directory, database, project_id, root) = fixture("version-scope");
+        let module_id = seed_module_with_source(&database, &project_id, &root);
+        crud::module_update(
+            &database,
+            crud::ModuleUpdateInput {
+                request_id: "module-update".to_string(),
+                project_id: project_id.clone(),
+                expected_project_revision: 4,
+                module_id: module_id.clone(),
+                expected_revision: 1,
+                parent_id: None,
+                clear_parent: false,
+                name: None,
+                slug: None,
+                summary: Some("Updated Inspector domain.".to_string()),
+                status: None,
+            },
+            "test",
+        )
+        .expect("update module");
+        let version_id = database
+            .list_entity_versions(&project_id, Some("module"), Some(&module_id), 10)
+            .expect("versions")[0]
+            .id
+            .clone();
+        let other_root = root.join("other");
+        fs::create_dir(&other_root).expect("create other root");
+        let other = database
+            .create_project(
+                "Other",
+                other_root.to_string_lossy().as_ref(),
+                "test",
+                "mcp",
+                "create-other",
+            )
+            .expect("create other project");
+        let server = VibeInspectorMcp::new(
+            database,
+            McpAuthorization::new("session", [project_id.clone(), other.id.clone()])
+                .expect("authorization"),
+        );
+
+        let hidden = server
+            .version_get(Parameters(VersionGetInput {
+                request_id: None,
+                project_id: other.id,
+                version_id,
+            }))
+            .await
+            .err()
+            .expect("cross-project version");
+        assert!(hidden.contains("\"code\":\"not_found\""), "{hidden}");
+    }
+
+    #[tokio::test]
+    async fn issue_tools_reject_projects_outside_the_allow_list() {
+        let (_directory, database, project_id, _root) = fixture("issue-scope");
+        let server = VibeInspectorMcp::new(
+            database,
+            McpAuthorization::new("session", ["other-project".to_string()])
+                .expect("authorization"),
+        );
+
+        let denied = server
+            .issue_list(Parameters(IssueListInput {
+                request_id: None,
+                project_id: project_id.clone(),
+                module_id: None,
+                status: None,
+                limit: None,
+            }))
+            .await
+            .err()
+            .expect("unauthorized project");
+        assert!(denied.contains("\"code\":\"unauthorized\""), "{denied}");
+
+        let denied = server
+            .issue_create(Parameters(crud::IssueCreateInput {
+                request_id: "issue-create".to_string(),
+                project_id,
+                module_id: "module-1".to_string(),
+                flow_id: None,
+                title: "Denied".to_string(),
+                description: None,
+                severity: crate::storage::issues::IssueSeverity::P1,
+                status: None,
+                path: None,
+                start_line: None,
+                end_line: None,
+                source: None,
+            }))
+            .await
+            .err()
+            .expect("unauthorized project");
+        assert!(denied.contains("\"code\":\"unauthorized\""), "{denied}");
+    }
+
     #[test]
     fn tool_router_exposes_the_complete_public_contract() {
         let authorization =
@@ -1435,7 +1799,7 @@ mod tests {
             .into_iter()
             .map(|tool| tool.name.into_owned())
             .collect::<HashSet<_>>();
-        assert_eq!(names.len(), 24);
+        assert_eq!(names.len(), 30);
         for required in [
             "inspector.project.list",
             "inspector.project.create",
@@ -1447,6 +1811,12 @@ mod tests {
             "inspector.search",
             "inspector.source.locate",
             "inspector.source.related",
+            "inspector.version.list",
+            "inspector.version.get",
+            "inspector.issue.list",
+            "inspector.issue.create",
+            "inspector.issue.update",
+            "inspector.issue.archive",
         ] {
             assert!(names.contains(required), "missing MCP tool {required}");
         }
