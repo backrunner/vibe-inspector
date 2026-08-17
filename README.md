@@ -27,7 +27,9 @@ The independent menu-bar helper keeps authenticated MCP tools available even whe
 - Hierarchical source tree and read-only Monaco viewer with exact line-range highlighting.
 - SQLite persistence with versioned mutations, audit history, migration backups, and recovery checks.
 - Independent macOS tray runtime with authenticated loopback MCP, login-item control, and graceful shutdown.
-- Thirty MCP tools plus `$inspector-init`, `$inspector-sync`, `$inspector-clarify`, and `$inspector-review` project skills.
+- Global agent setup for Codex, Claude Code, OpenCode, Cursor, Grok, and Kimi Code, with a keyboard-first TUI and idempotent backups.
+- `vibe-inspector setup` CLI with JSON, doctor, and dry-run modes for repeatable workstation bootstrap.
+- Thirty MCP tools plus `$inspector-init`, `$inspector-sync`, `$inspector-clarify`, `$inspector-review`, and `$vibe-inspector-setup` skills.
 - Zinc-based light and dark themes built with Svelte 5, shadcn-svelte, and Bits UI.
 
 ## Architecture
@@ -68,6 +70,37 @@ Install dependencies and launch the native desktop flow:
 ```bash
 pnpm install
 pnpm run dev:tauri
+```
+
+To install the command and its stdio helper on your `PATH` from a Rust checkout:
+
+```bash
+cargo install --path src-tauri --bins
+vibe-inspector --json doctor
+vibe-inspector setup
+```
+
+`vibe-inspector setup` opens a compact inline multi-select terminal UI. Use `--agent codex --yes` or
+`--all --yes` in scripts; `--dry-run` previews paths, and `--json` emits stable machine-readable
+results. The app binary still opens the desktop when run without a subcommand.
+
+Supported global targets are Codex (`~/.codex`), Claude Code (`~/.claude`), OpenCode
+(`$XDG_CONFIG_HOME/opencode` or `~/.config/opencode`), Cursor (`~/.cursor`), Grok
+(`$GROK_HOME` or `~/.grok`),
+and Kimi Code (`$KIMI_CODE_HOME` or `~/.kimi-code`). Existing agent configuration is backed up
+to `<file>.vibe-inspector-backup` before its first mutation.
+
+JSON commands write only one envelope to stdout. Success is
+`{"ok":true,"command":"agents.list","data":{...}}`; errors are
+`{"ok":false,"command":"setup","error":{"code":"...","message":"..."}}`. A multi-agent
+partial failure also includes per-agent results under `data.results` and exits nonzero. Secrets are
+never returned. Common reads and writes are:
+
+```bash
+vibe-inspector --json agents list
+vibe-inspector --json doctor
+vibe-inspector --json setup --agent codex --dry-run
+vibe-inspector --json setup --agent codex --yes
 ```
 
 For browser-only UI work, run:

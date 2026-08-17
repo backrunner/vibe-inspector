@@ -4,7 +4,7 @@
 
 VibeInspector v1 is a macOS-only, local-first application. The app bundle contains three executables in `Contents/MacOS`: `vibe-inspector` for the Tauri desktop, `vibe-inspector-tray` for the independent menu-bar/HTTP MCP runtime, and `vibe-inspector-mcp` for authenticated stdio clients. The Tauri build must package and sign all three executables together; the tray uses the `externalBin` preparation pipeline.
 
-The project has no network telemetry. Local diagnostics are metadata-only JSON Lines records in the application support directory. They contain process, event type, PID, and timestamp only; they must never contain prompts, source, repository paths, bearer tokens, or error strings.
+The project has no network telemetry. Local diagnostics are metadata-only JSON Lines records in the application support directory. They contain process, event type, PID, and timestamp only; they must never contain prompts, source, repository paths, bearer tokens, or error strings. The bundled `vibe-inspector` executable also serves the `setup`, `agents`, and `doctor` CLI commands; the no-argument path remains the desktop shell.
 
 ## 2. Automated release gate
 

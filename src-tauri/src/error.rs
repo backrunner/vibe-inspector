@@ -22,6 +22,8 @@ pub enum AppError {
     NotFound(String),
     #[error("The inspector payload is invalid: {0}")]
     Validation(String),
+    #[error("Agent setup failed: {0}")]
+    AgentSetup(String),
     #[error("The MCP session is not authorized for: {0}")]
     Unauthorized(String),
     #[error("The requested path escapes the registered project root: {0}")]

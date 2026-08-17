@@ -1,0 +1,4 @@
+interface:
+  display_name: "VibeInspector Setup"
+  short_description: "Install global MCP and inspector skills"
+  default_prompt: "Use $vibe-inspector-setup to configure VibeInspector for my installed coding agents."

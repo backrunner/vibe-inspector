@@ -28,7 +28,7 @@ Exit criteria: fixture flow renders graph + explanation + three source ranges; s
 
 ## Phase 4: Commands and MCP
 
-Deliver: `$inspector-init`, `$inspector-sync`, `$inspector-clarify`, `$inspector-review` skill handlers, command activity/provenance, MCP server CRUD tools, idempotency, revision conflicts, and audit events.
+Deliver: `$inspector-init`, `$inspector-sync`, `$inspector-clarify`, `$inspector-review`, and `$vibe-inspector-setup` skill handlers, command activity/provenance, MCP server CRUD tools, idempotency, revision conflicts, and audit events. The setup CLI/TUI owns global agent installation without modifying repositories.
 
 Exit criteria: command fixtures cover structural preservation rules; MCP and UI produce equivalent mutations through shared services; malformed model output is rejected or marked for review.
 

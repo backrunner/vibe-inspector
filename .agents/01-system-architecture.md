@@ -40,6 +40,8 @@ SvelteKit UI (webview)
 
 The tray and desktop processes share the Rust storage, MCP, and filesystem-broker modules. The tray binds a per-user Unix socket for health, open, and quit control messages, while MCP uses streamable HTTP on `127.0.0.1` with an OS-random bearer token stored at mode `0600`. The token is never exposed through a Tauri command. The desktop probes the socket through a small bridge and uses Tauri's single-instance plugin to focus the existing `main` window.
 
+The `vibe-inspector` desktop executable also dispatches the local setup CLI before constructing Tauri when it receives `setup`, `agents`, or `doctor` subcommands. This keeps the distributed command name stable while preserving the no-argument desktop launch. CLI and desktop integration controls call the same Rust agent-integration service.
+
 The tray is the availability anchor for MCP: whenever the stdio MCP sidecar (`vibe-inspector-mcp`) starts, it first ensures the tray is running by probing the control socket and, on failure, spawning the sibling `vibe-inspector-tray` binary (or the `VIBE_INSPECTOR_TRAY_PATH` override) deployed next to it. Tray startup failure is recorded as a diagnostic event but never blocks the stdio MCP session, so agent-side MCP stays available even when the tray cannot be launched. The reverse direction needs no work: the tray hosts the HTTP MCP listener itself, and the single-instance socket claim makes repeated spawns idempotent.
 
 Quitting from the tray menu (or the control-socket `quit` command) stops the tray and its embedded HTTP MCP together and records a quit-intent marker (`tray-quit.intent`, mode `0600`) in the runtime directory. While the marker exists, implicit launchers — the stdio MCP sidecar — must not respawn the tray; the sidecar records a `tray-start-suppressed` diagnostic and keeps serving stdio. Explicit user actions clear the marker and restore normal startup: opening the desktop app, enabling the login item, or any tray start (which clears the marker after claiming the control socket). A graceful quit exits with status 0, so the login item's `KeepAlive.SuccessfulExit=false` policy does not relaunch the tray; an enabled login item still starts the tray at the next login.
@@ -91,6 +93,7 @@ src-tauri/
     project_discovery.rs     # bounded root-marker scan and naming rules
     codex_history/           # history discovery parser
     mcp/                     # server and tool adapters
+    cli.rs                  # shared setup/doctor/list CLI and terminal selector
     bin/
       vibe-inspector-tray.rs # separate always-on tray binary bundled beside the desktop binary
       vibe-inspector-mcp.rs  # authenticated stdio MCP entry for direct clients; ensures the tray is running before serving

@@ -1,4 +1,5 @@
 pub mod agent_integrations;
+pub mod cli;
 mod codegraph;
 mod codex_history;
 pub mod command_service;

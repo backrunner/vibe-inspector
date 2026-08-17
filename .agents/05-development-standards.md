@@ -35,6 +35,7 @@ Unit tests are required for:
 - Stable ID and scope fingerprint generation.
 - Init/sync/clarify structural rules and revision conflicts.
 - MCP authorization, idempotency, error mapping, and CRUD parity with UI services.
+- Agent detection, JSON/TOML/JSONC config merging, install idempotency, backup permissions, and CLI `--json`/TUI selection behavior.
 
 Integration tests are required for:
 

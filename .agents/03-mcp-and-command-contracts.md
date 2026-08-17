@@ -174,7 +174,7 @@ its window regains focus while preserving the current selection.
 ## 4. Agent skill behavior
 
 Codex discovers the repo-owned skills under `.agents/skills`. Users invoke them as
-`$inspector-init`, `$inspector-sync`, `$inspector-clarify`, and `$inspector-review`. Arbitrary project-owned `/name`
+`$inspector-init`, `$inspector-sync`, `$inspector-clarify`, `$inspector-review`, and `$vibe-inspector-setup`. Arbitrary project-owned `/name`
 slash commands are not a supported Codex extension surface. The stable MCP/domain command names
 remain `inspector-init`, `inspector-sync`, and `inspector-clarify`; `inspector-review` is a skill-only
 workflow that records findings through the `inspector.issue.*` tools rather than a snapshot command.
@@ -216,15 +216,20 @@ Input context: a selected module. The skill first refreshes stale evidence throu
 
 The desktop detects locally installed coding agents and, with explicit user selection, deploys the inspector skills and registers the `vibe-inspector` MCP server into each agent's global configuration. Repositories are never modified; installation is global per agent.
 
-| Agent | Detection | Skills directory | MCP config |
-| --- | --- | --- | --- |
-| Codex | `~/.codex/` or `codex` on `PATH` | `~/.codex/skills/<name>/` (`SKILL.md` + `agents/openai.yaml`) | `[mcp_servers.vibe-inspector]` in `~/.codex/config.toml` |
-| Claude Code | `~/.claude/` or `claude` on `PATH` | `~/.claude/skills/<name>/SKILL.md` | `mcpServers["vibe-inspector"]` in `~/.claude.json` |
-| Kimi Code | `~/.kimi-code/` or `kimi` on `PATH` (`KIMI_CODE_HOME` respected) | `~/.kimi-code/skills/<name>/SKILL.md` | `mcpServers["vibe-inspector"]` in `~/.kimi-code/mcp.json` |
+| Agent       | Detection                                                                   | Skills directory                                              | MCP config                                                  |
+| ----------- | --------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------------------------------------- |
+| Codex       | `~/.codex/` or `codex` on `PATH`                                            | `~/.codex/skills/<name>/` (`SKILL.md` + `agents/openai.yaml`) | `[mcp_servers.vibe-inspector]` in `~/.codex/config.toml`    |
+| Claude Code | `~/.claude/` or `claude` on `PATH`                                          | `~/.claude/skills/<name>/SKILL.md`                            | `mcpServers["vibe-inspector"]` in `~/.claude.json`          |
+| OpenCode    | `~/.config/opencode/` or `opencode` on `PATH` (`XDG_CONFIG_HOME` respected) | `~/.config/opencode/skills/<name>/SKILL.md`                   | `mcp.vibe-inspector` in `opencode.jsonc` or `opencode.json` |
+| Cursor      | `~/.cursor/`, `Cursor.app`, or `cursor-agent`/`cursor` on `PATH`             | `~/.cursor/skills/<name>/SKILL.md`                            | `mcpServers["vibe-inspector"]` in `~/.cursor/mcp.json`      |
+| Grok        | `~/.grok/` or `grok` on `PATH` (`GROK_HOME` respected)                      | `~/.grok/skills/<name>/SKILL.md`                              | `[mcp_servers.vibe-inspector]` in `~/.grok/config.toml`     |
+| Kimi Code   | `~/.kimi-code/` or `kimi` on `PATH` (`KIMI_CODE_HOME` respected)            | `~/.kimi-code/skills/<name>/SKILL.md`                         | `mcpServers["vibe-inspector"]` in `~/.kimi-code/mcp.json`   |
 
 Rules:
 
 - Skill templates ship inside the app bundle (`src-tauri/templates/skills`) and are embedded with `include_str!`. Install state is derived by comparing on-disk content with the bundled template: `installed`, `outdated`, or `missing`.
+- `vibe-inspector setup` is the shared CLI entry point. With a TTY it opens a compact inline multi-select TUI; `--agent`, `--all`, `--yes`, `--dry-run`, and `--json` provide deterministic automation. `vibe-inspector agents list` reports every supported target and `vibe-inspector --json doctor` reports helper availability without exposing secrets. The same executable starts the desktop when invoked without a CLI subcommand.
+- OpenCode's `opencode.jsonc` is parsed as JSONC and rewritten with unknown fields preserved; Grok's TOML uses the same nested MCP table shape as Codex. Cursor receives the documented `type: "stdio"` field and the standard `mcpServers` object.
 - Every MCP entry is a stdio server whose `command` is the `vibe-inspector-mcp` executable next to the running desktop binary. Environment per agent: `VIBE_INSPECTOR_SESSION_SECRET` (random 64-hex, generated per agent at install), `VIBE_INSPECTOR_SESSION_ID` (`agent-<id>`), `VIBE_INSPECTOR_ALLOWED_PROJECTS` (registered project IDs, re-synced after every `register_projects`), and `VIBE_INSPECTOR_ALLOW_PROJECT_CREATE=1` so agents can auto-import the project they run in through `inspector.project.create`. The allow-list sync also upserts `VIBE_INSPECTOR_ALLOW_PROJECT_CREATE`, upgrading agent configs installed before auto-import existed. Auto-import stays bounded: the root must canonicalize inside the filesystem, carry recognized project root markers, and dedupe by canonical root path; bulk candidate discovery still requires user confirmation in the desktop UI.
-- Writes are limited to the detected agent configuration directories inside the user home; paths are canonicalized and symlink escapes rejected. Existing config files are backed up to `<file>.vibe-inspector-backup` before the first mutation; newly created secret-bearing files are mode `0600`.
+- Writes are limited to each detected agent configuration root (inside the user home unless an explicit `XDG_CONFIG_HOME`, `GROK_HOME`, or `KIMI_CODE_HOME` override is set); directories and files are canonicalized and symlink escapes rejected. Existing config files are backed up to `<file>.vibe-inspector-backup` before the first mutation; newly created secret-bearing files are mode `0600`.
 - A failure for one agent must not abort installation for the remaining selected agents.
