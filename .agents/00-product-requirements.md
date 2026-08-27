@@ -13,6 +13,7 @@ Platform scope for v1: macOS only. The desktop application is launched on demand
 - Discover local Codex conversation history and propose project entries from repository paths.
 - Bind each project entry to a canonical, validated local repository root.
 - Represent a repository as modules, business flows, explanations, and source references.
+- Present module architecture and business-flow behavior as distinct graphs: architecture shows responsibility containment, while a flow graph shows one runtime outcome.
 - Let a user inspect a flow as a diagram plus an AI explanation and exact read-only code locations.
 - Allow Codex to initialize, synchronize, and clarify inspector data through slash commands.
 - Expose safe CRUD MCP tools for projects, modules, business flows, explanations, and source references.
@@ -43,20 +44,21 @@ Acceptance: a project is never created from an unvalidated path; nested packages
 
 1. User selects a project in the collapsible left rail.
 2. User expands a module stub in the middle rail and selects a business flow.
-3. Main pane shows flow metadata, a diagram, an explanation panel, and referenced files.
+3. Main pane provides a clearly labeled module architecture graph alongside the selected flow's business-flow diagram, explanation panel, and referenced files.
 4. Selecting a file opens a read-only Monaco editor at the referenced line range.
 5. The flow overview remains above the source evidence workspace so the user can compare architecture and implementation without changing views or losing selection.
 
-Acceptance: deep links preserve project, module, flow, file, and line-range selection; missing files are visible as stale references rather than silently removed.
+Acceptance: module architecture remains visible even when the selected module has no flow; architecture containment is never presented as runtime flow; deep links preserve project, module, flow, file, and line-range selection; missing files are visible as stale references rather than silently removed.
 
 ### 4.3 Initialize, synchronize, clarify
 
-- `$inspector-init [scope prompt]` creates an initial module/flow model for the requested scope or the whole repository when no scope is supplied.
+- `$inspector-init [scope prompt]` inventories and inspects every in-scope, non-generated source file before creating a detailed module/flow model for the requested scope or the whole repository when no scope is supplied. Every leaf module has at least one renderable business flow.
+- Repeating `$inspector-init` refines the existing model: it reuses stable module and flow IDs, updates responsibilities and evidence in place, and adds only missing or more detailed modules instead of duplicating existing entities.
 - `$inspector-sync [scope prompt]` refreshes evidence and explanations for the current conversation context; structural changes require a change proposal and explicit confirmation.
 - `$inspector-clarify [scope prompt]` decomposes an overly broad module or flow while preserving IDs and history for existing entities.
 - `$inspector-review [scope prompt]` refreshes the selected module's evidence, reviews its logic against the source, and records confirmed problems as severity-tagged issue items with an updatable status.
 
-Acceptance: commands are idempotent by conversation turn and scope fingerprint; every mutation records source command, model metadata, timestamp, and changed entity IDs.
+Acceptance: commands are idempotent by conversation turn and scope fingerprint; the module hierarchy contains one to three levels; invalid or unrenderable business flows are rejected with a correction request; every mutation records source command, model metadata, timestamp, and changed entity IDs.
 
 ### 4.4 Tray-first operation
 
@@ -71,8 +73,8 @@ Acceptance: MCP health does not depend on a visible window; one tray instance an
 
 - Project rail: filterable projects, recent activity, collapse toggle. Inspector lifecycle states
   remain in MCP/storage data and are not rendered as routine status indicators.
-- Module rail: repository modules in a tree/stub list and flow counts. Initialization remains Agent-owned and is not exposed as a desktop UI action.
-- Inspector workspace: flow header, upper diagram/rationale band, lower source references/read-only code band.
+- Module rail: repository modules in a tree/stub list with at most three levels and flow counts. Long trees scroll horizontally. Initialization remains Agent-owned and is not exposed as a desktop UI action.
+- Inspector workspace: flow header, explicit Architecture/Flow/Rationale views in the upper band, and source references/read-only code in the lower band.
 - Secondary surfaces: command activity, provenance, settings, MCP health, keyboard shortcut help.
 
 ## 6. State model visible to users

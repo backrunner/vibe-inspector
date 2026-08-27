@@ -138,7 +138,9 @@ impl InspectorDatabase {
             .optional()
             .map_err(database_error)?
             .ok_or_else(|| AppError::NotFound(format!("entity version {version_id}")))?;
-        let summary = parse_summary((row.0, row.1, row.2, row.3, row.4, row.6, row.7, row.8, row.9))?;
+        let summary = parse_summary((
+            row.0, row.1, row.2, row.3, row.4, row.6, row.7, row.8, row.9,
+        ))?;
         Ok(EntityVersion {
             id: summary.id,
             project_id: summary.project_id,

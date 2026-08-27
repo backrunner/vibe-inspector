@@ -95,6 +95,62 @@ describe('flowVersionSnapshot', () => {
     expect(snapshot?.graph.nodes[0].kind).toBe('action');
     expect(snapshot?.explanation).toBeNull();
   });
+
+  it('falls back to workflow/control for unknown diagram and edge kinds', () => {
+    const snapshot = flowVersionSnapshot(
+      version({
+        snapshotJson: {
+          name: 'Flow',
+          graph: {
+            kind: 'mystery',
+            nodes: [],
+            edges: [{ from: 'a', to: 'b', kind: 'mystery' }],
+          },
+        },
+      }),
+    );
+    expect(snapshot?.graph.kind).toBe('workflow');
+    expect(snapshot?.graph.edges[0].kind).toBe('control');
+  });
+
+  it('preserves known diagram and edge kinds', () => {
+    const snapshot = flowVersionSnapshot(
+      version({
+        snapshotJson: {
+          name: 'Flow',
+          graph: {
+            kind: 'sequence',
+            nodes: [],
+            edges: [{ from: 'a', to: 'b', kind: 'dependency' }],
+          },
+        },
+      }),
+    );
+    expect(snapshot?.graph.kind).toBe('sequence');
+    expect(snapshot?.graph.edges[0].kind).toBe('dependency');
+  });
+
+  it('parses edge mechanism and sourceRefIds defensively', () => {
+    const snapshot = flowVersionSnapshot(
+      version({
+        snapshotJson: {
+          name: 'Flow',
+          graph: {
+            nodes: [],
+            edges: [
+              { from: 'a', to: 'b', mechanism: 'MCP', sourceRefIds: ['ref-1', 7, 'ref-2'] },
+              { from: 'b', to: 'c', mechanism: 42 },
+            ],
+          },
+        },
+      }),
+    );
+    expect(snapshot?.graph.edges[0]).toMatchObject({
+      mechanism: 'MCP',
+      sourceRefIds: ['ref-1', 'ref-2'],
+    });
+    expect(snapshot?.graph.edges[1]).toMatchObject({ mechanism: undefined, sourceRefIds: [] });
+  });
 });
 
 describe('moduleVersionSnapshot', () => {

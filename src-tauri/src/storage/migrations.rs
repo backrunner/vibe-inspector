@@ -1,4 +1,4 @@
-pub const SCHEMA_VERSION: u32 = 3;
+pub const SCHEMA_VERSION: u32 = 4;
 
 pub const MIGRATION_1: &str = r#"
 CREATE TABLE IF NOT EXISTS projects (
@@ -201,4 +201,12 @@ CREATE INDEX IF NOT EXISTS idx_entity_versions_project
     ON entity_versions(project_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_issues_module ON issues(module_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_issues_project ON issues(project_id, created_at DESC);
+"#;
+
+pub const MIGRATION_4: &str = r#"
+ALTER TABLE flows ADD COLUMN diagram_kind TEXT NOT NULL DEFAULT 'workflow';
+ALTER TABLE flow_edges ADD COLUMN kind TEXT NOT NULL DEFAULT 'control';
+ALTER TABLE flow_edges ADD COLUMN mechanism TEXT;
+ALTER TABLE flow_edges ADD COLUMN source_ref_ids_json TEXT NOT NULL DEFAULT '[]';
+ALTER TABLE command_runs ADD COLUMN coverage_json TEXT;
 "#;

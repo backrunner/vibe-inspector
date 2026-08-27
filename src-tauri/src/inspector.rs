@@ -78,8 +78,44 @@ pub struct InspectorFlow {
 #[derive(Debug, Clone, Default, Deserialize, Serialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct InspectorGraph {
+    #[serde(default)]
+    pub kind: DiagramKind,
     pub nodes: Vec<InspectorFlowNode>,
     pub edges: Vec<InspectorFlowEdge>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum DiagramKind {
+    Architecture,
+    #[default]
+    Workflow,
+    Sequence,
+    Dataflow,
+    Lifecycle,
+}
+
+impl DiagramKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Architecture => "architecture",
+            Self::Workflow => "workflow",
+            Self::Sequence => "sequence",
+            Self::Dataflow => "dataflow",
+            Self::Lifecycle => "lifecycle",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "architecture" => Some(Self::Architecture),
+            "workflow" => Some(Self::Workflow),
+            "sequence" => Some(Self::Sequence),
+            "dataflow" => Some(Self::Dataflow),
+            "lifecycle" => Some(Self::Lifecycle),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, JsonSchema)]
@@ -133,6 +169,45 @@ pub struct InspectorFlowEdge {
     pub from: String,
     pub to: String,
     pub label: Option<String>,
+    #[serde(default)]
+    pub kind: FlowEdgeKind,
+    pub mechanism: Option<String>,
+    #[serde(default)]
+    pub source_ref_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum FlowEdgeKind {
+    #[default]
+    Control,
+    Data,
+    Async,
+    Error,
+    Dependency,
+}
+
+impl FlowEdgeKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Control => "control",
+            Self::Data => "data",
+            Self::Async => "async",
+            Self::Error => "error",
+            Self::Dependency => "dependency",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "control" => Some(Self::Control),
+            "data" => Some(Self::Data),
+            "async" => Some(Self::Async),
+            "error" => Some(Self::Error),
+            "dependency" => Some(Self::Dependency),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, JsonSchema)]

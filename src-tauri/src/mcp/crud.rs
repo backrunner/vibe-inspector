@@ -1058,6 +1058,7 @@ fn save_result<T: Serialize>(
         actor,
         "committed",
         &serde_json::to_string(result).map_err(|error| AppError::Database(error.to_string()))?,
+        None,
     )
 }
 
@@ -1263,6 +1264,41 @@ mod tests {
         (directory, database, project.id, root)
     }
 
+    fn renderable_graph() -> InspectorGraph {
+        let start_id = Uuid::now_v7().to_string();
+        let end_id = Uuid::now_v7().to_string();
+        InspectorGraph {
+            kind: crate::inspector::DiagramKind::Workflow,
+            nodes: vec![
+                crate::inspector::InspectorFlowNode {
+                    id: start_id.clone(),
+                    label: "Start".to_string(),
+                    kind: crate::inspector::FlowNodeKind::Start,
+                    description: None,
+                    source_ref_ids: vec![],
+                    position: 0,
+                },
+                crate::inspector::InspectorFlowNode {
+                    id: end_id.clone(),
+                    label: "Complete".to_string(),
+                    kind: crate::inspector::FlowNodeKind::End,
+                    description: None,
+                    source_ref_ids: vec![],
+                    position: 1,
+                },
+            ],
+            edges: vec![crate::inspector::InspectorFlowEdge {
+                id: Uuid::now_v7().to_string(),
+                from: start_id,
+                to: end_id,
+                label: None,
+                kind: crate::inspector::FlowEdgeKind::Control,
+                mechanism: None,
+                source_ref_ids: vec![],
+            }],
+        }
+    }
+
     #[test]
     fn project_create_is_idempotent_for_a_recognized_root() {
         let directory = TestDirectory::new("project-create");
@@ -1365,7 +1401,7 @@ mod tests {
                 name: "Refresh".to_string(),
                 summary: "Refresh evidence.".to_string(),
                 status: EntityStatus::Ready,
-                graph: InspectorGraph::default(),
+                graph: renderable_graph(),
             },
             "mcp:test",
         )
@@ -1515,7 +1551,7 @@ mod tests {
                 name: "Read source".to_string(),
                 summary: "Reads bounded evidence.".to_string(),
                 status: EntityStatus::Ready,
-                graph: InspectorGraph::default(),
+                graph: renderable_graph(),
             },
             "mcp:test",
         )
@@ -1708,7 +1744,10 @@ mod tests {
             "mcp:test",
         )
         .expect("replay resolve");
-        assert_eq!(replayed.issue.revision, 2, "replay returns the cached result");
+        assert_eq!(
+            replayed.issue.revision, 2,
+            "replay returns the cached result"
+        );
 
         let conflict = issue_update(
             &database,

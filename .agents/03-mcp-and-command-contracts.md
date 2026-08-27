@@ -50,7 +50,11 @@ type Flow = {
   name: string;
   summary: string;
   status: 'draft' | 'ready' | 'stale' | 'needs-review';
-  graph: { nodes: FlowNode[]; edges: FlowEdge[] };
+  graph: {
+    kind?: 'architecture' | 'workflow' | 'sequence' | 'dataflow' | 'lifecycle';
+    nodes: FlowNode[];
+    edges: FlowEdge[];
+  };
   explanationId: string | null;
   sourceRefIds: string[];
   revision: number;
@@ -64,7 +68,26 @@ type FlowNode = {
   sourceRefIds: string[];
 };
 
-type FlowEdge = { id: string; from: string; to: string; label?: string };
+type FlowEdge = {
+  id: string;
+  from: string;
+  to: string;
+  label?: string;
+  kind: 'control' | 'data' | 'async' | 'error' | 'dependency';
+  mechanism?: string;
+  sourceRefIds: string[];
+};
+
+type InspectionCoverage = {
+  totalFiles: number;
+  inspectedFiles: number;
+  ignoredFiles?: number;
+  generatedFiles?: number;
+  unreadableFiles?: string[];
+  sourceRefCount: number;
+  completed: boolean;
+  inventoryFingerprint?: string;
+};
 
 type SourceRef = {
   id: string;
@@ -164,6 +187,12 @@ MCP tools must call the same domain services as the UI. They may not mutate SQLi
 
 `inspector.module.create` has ensure semantics on the module slug: when an active module with the same slug already exists in the project, the tool returns that module unchanged with `reusedExisting: true` instead of creating a duplicate. Snapshot commits (including `inspector.command.run` proposals) are validated to reject duplicate module slugs. Callers must still list existing modules first and prefer `inspector.module.update` for entities that already exist.
 
+Snapshot commits allow a module hierarchy of one to three levels. Every business flow is validated before command review and again before persistence: it must contain unique non-empty node and edge IDs, bounded non-empty labels, at least one start and one end, and a connected path that makes every node reachable from a start and able to reach an end. `$inspector-init` additionally requires at least one flow on every leaf module. A violation returns `render_error` with a correction message; the calling agent must repair the graph and retry rather than omit the flow.
+
+Each flow declares one diagram kind (`architecture`, `workflow`, `sequence`, `dataflow`, or `lifecycle`). Relationship semantics are explicit: `kind` describes control/data/async/error/dependency intent, `mechanism` names the transport or call boundary, and `sourceRefIds` points to direct evidence. The renderer may style these values but must not infer runtime causality from file proximity, names, or edge labels. Command proposals may include an `InspectionCoverage` manifest; completed coverage must account for every in-scope file, and unreadable paths must be repository-relative. Validation diagnostics are structured with a stable code, severity, subject, evidence, and `supportedFixes`. Non-blocking diagnostics (severity `warning`) do not fail the command; they are returned on `inspector.command.run` results as `graphWarnings: GraphDiagnostic[]`, and idempotent replays of the same `requestId` carry the same list.
+
+The desktop presents two distinct graph surfaces. The module architecture graph is derived from the module hierarchy and answers responsibility/containment questions; it remains available even when a module has no business flow. A business-flow graph is scoped to one module outcome and answers runtime behavior questions. Do not encode module containment as flow steps, and do not infer module dependencies from directory proximity. If explicit cross-module dependencies are added later, they must be represented as evidence-backed architecture relationships with their own stable IDs.
+
 `inspector.issue.*` tools manage review issue entries, which live outside the `InspectorSnapshot`: they do not take `expectedProjectRevision` and never bump the project revision. `inspector.issue.create` fills `moduleRevision` from the module's current revision server-side and defaults `source` to `mcp` (callers such as the review skill may pass their own, e.g. `inspector-review`). `inspector.issue.update`/`.archive` use entity-level `expectedRevision` optimistic locking; in `update`, `flowId`/`path`/`startLine`/`endLine` are tri-state — omitted leaves the value untouched, explicit `null` clears it. All three are idempotent for the same `requestId`, and issue IDs of other projects answer `not_found`.
 
 The desktop UI is a read-only Inspector client. It does not expose lifecycle badges for `draft`,
@@ -181,11 +210,13 @@ workflow that records findings through the `inspector.issue.*` tools rather than
 
 ### `$inspector-init [prompt]`
 
-Input context: current project root, current Codex conversation ID, optional natural-language scope. Output: a proposed or committed module/flow graph, explanations, and source references. Default scope is the whole repository. When the current working directory is not inside a registered project root, the skill auto-imports it through `inspector.project.create` before proposing anything. The command must show a summary and confidence before committing when the result changes more than a configured entity threshold.
+Input context: current project root, current Codex conversation ID, optional natural-language scope. Output: a proposed or committed module/flow graph, explanations, source references, and an inspection coverage manifest. Default scope is the whole repository. Before proposing, the agent inventories and inspects every in-scope, non-generated source file in bounded batches; it records the inventory and coverage before drafting the graph. The result must describe concrete business responsibilities rather than only top-level directories or frameworks. For each flow, classify the diagram kind, choose one clear main path, keep roughly 6-12 primary nodes, label decisions with explicit branch outcomes, and attach symbol-sized evidence to nodes and edges. When the current working directory is not inside a registered project root, the skill auto-imports it through `inspector.project.create` before proposing anything. On repeated initialization, the agent lists and reads the existing model, reuses stable IDs/slugs, updates existing responsibilities and evidence, and creates only missing or finer-grained entities. It reports file coverage plus reused, updated, and created counts. The command must show a summary and confidence before committing when the result changes more than a configured entity threshold.
 
 ### `$inspector-sync [prompt]`
 
 Input context: current project and conversation module/flow context. Output: refreshed source hashes, explanations, and evidence. Existing module/flow IDs are preserved. Structural changes become a proposal with `added`, `removed`, and `renamed` lists; the caller must explicitly accept structural changes. When the project was never initialized (registered but no modules), the skill falls back to the `$inspector-init` workflow instead of failing.
+
+Structural review also reports changed graph semantics and changed evidence references. A graph-only change is not treated as a rename; it is reconciled by stable node/edge IDs and reviewed with the structured diagnostics report.
 
 ### `$inspector-clarify [prompt]`
 
@@ -221,7 +252,7 @@ The desktop detects locally installed coding agents and, with explicit user sele
 | Codex       | `~/.codex/` or `codex` on `PATH`                                            | `~/.codex/skills/<name>/` (`SKILL.md` + `agents/openai.yaml`) | `[mcp_servers.vibe-inspector]` in `~/.codex/config.toml`    |
 | Claude Code | `~/.claude/` or `claude` on `PATH`                                          | `~/.claude/skills/<name>/SKILL.md`                            | `mcpServers["vibe-inspector"]` in `~/.claude.json`          |
 | OpenCode    | `~/.config/opencode/` or `opencode` on `PATH` (`XDG_CONFIG_HOME` respected) | `~/.config/opencode/skills/<name>/SKILL.md`                   | `mcp.vibe-inspector` in `opencode.jsonc` or `opencode.json` |
-| Cursor      | `~/.cursor/`, `Cursor.app`, or `cursor-agent`/`cursor` on `PATH`             | `~/.cursor/skills/<name>/SKILL.md`                            | `mcpServers["vibe-inspector"]` in `~/.cursor/mcp.json`      |
+| Cursor      | `~/.cursor/`, `Cursor.app`, or `cursor-agent`/`cursor` on `PATH`            | `~/.cursor/skills/<name>/SKILL.md`                            | `mcpServers["vibe-inspector"]` in `~/.cursor/mcp.json`      |
 | Grok        | `~/.grok/` or `grok` on `PATH` (`GROK_HOME` respected)                      | `~/.grok/skills/<name>/SKILL.md`                              | `[mcp_servers.vibe-inspector]` in `~/.grok/config.toml`     |
 | Kimi Code   | `~/.kimi-code/` or `kimi` on `PATH` (`KIMI_CODE_HOME` respected)            | `~/.kimi-code/skills/<name>/SKILL.md`                         | `mcpServers["vibe-inspector"]` in `~/.kimi-code/mcp.json`   |
 

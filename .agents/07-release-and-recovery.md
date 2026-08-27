@@ -48,6 +48,8 @@ Before upgrading a non-empty older SQLite schema, VibeInspector uses SQLite's on
 
 The primary database and backup files are user-only (`0600`); the backup directory is `0700`. The newest five migration backups are retained. Fresh databases and repeated starts on the current schema do not create backups.
 
+Schema upgrades are followed by an idempotent data-repair pass (`repair_non_renderable_flows`) that soft-archives active flows whose graphs fail the renderable validation (empty or disconnected legacy graphs from before schema v4). Repaired flows keep their rows with `status = 'archived'` and are audited as mutation events with actor `migration`; the pass also runs on databases already at the latest schema so installations that upgraded before the validation existed get the same compensation.
+
 ## 5. Recovery procedure
 
 1. Quit `VibeInspector Services` from the menu-bar item and close the desktop app.

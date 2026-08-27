@@ -166,6 +166,18 @@ pub(super) fn normalize_proposal(
                 )?;
                 edge.to =
                     resolve_reference(&edge.to, &node_ids, &current_node_ids, "edge target node")?;
+                edge.source_ref_ids = edge
+                    .source_ref_ids
+                    .iter()
+                    .map(|id| {
+                        resolve_reference(
+                            id,
+                            &source_ids,
+                            &current_source_ids,
+                            "edge source reference",
+                        )
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
             }
             if let Some(explanation) = &mut flow.explanation {
                 explanation.id = take_assigned(
@@ -298,6 +310,18 @@ fn validate_flow_references(flow: &InspectorFlow) -> Result<(), AppError> {
             return Err(AppError::Validation(format!(
                 "flow node {} references evidence outside its flow",
                 node.id
+            )));
+        }
+    }
+    for edge in &flow.graph.edges {
+        if edge
+            .source_ref_ids
+            .iter()
+            .any(|id| !source_ids.contains(id.as_str()))
+        {
+            return Err(AppError::Validation(format!(
+                "flow edge {} references evidence outside its flow",
+                edge.id
             )));
         }
     }

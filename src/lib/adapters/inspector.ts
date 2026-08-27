@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Flow, Module, Provenance, SourceRef } from '$domain/entities';
+import type { DiagramKind, Flow, FlowEdgeKind, Module, Provenance, SourceRef } from '$domain/entities';
 
 export type InspectorSnapshotDto = {
   projectId: string;
@@ -32,6 +32,7 @@ type InspectorFlowDto = {
   createdAt: string;
   updatedAt: string;
   graph: {
+    kind?: DiagramKind;
     nodes: Array<{
       id: string;
       label: string;
@@ -40,7 +41,15 @@ type InspectorFlowDto = {
       sourceRefIds: string[];
       position: number;
     }>;
-    edges: Flow['graph']['edges'];
+    edges: Array<{
+      id: string;
+      from: string;
+      to: string;
+      label?: string | null;
+      kind?: FlowEdgeKind;
+      mechanism?: string | null;
+      sourceRefIds?: string[];
+    }>;
   };
   explanation: null | {
     headline: string;
@@ -114,6 +123,7 @@ export function snapshotModules(snapshot: InspectorSnapshotDto): Module[] {
       owner: flow.explanation?.provenance.source ?? 'Inspector',
       updatedAt: flow.updatedAt,
       graph: {
+        kind: flow.graph.kind ?? 'workflow',
         nodes: flow.graph.nodes.map((node) => ({
           id: node.id,
           label: node.label,
@@ -123,7 +133,13 @@ export function snapshotModules(snapshot: InspectorSnapshotDto): Module[] {
           x: 0,
           y: 0,
         })),
-        edges: flow.graph.edges,
+        edges: flow.graph.edges.map((edge) => ({
+          ...edge,
+          label: edge.label ?? undefined,
+          kind: edge.kind ?? 'control',
+          mechanism: edge.mechanism ?? undefined,
+          sourceRefIds: edge.sourceRefIds ?? [],
+        })),
       },
       explanation: flow.explanation
         ? {

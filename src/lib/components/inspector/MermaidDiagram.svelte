@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { TriangleAlert } from '@lucide/svelte';
   import { onMount } from 'svelte';
   import { Skeleton } from '$lib/components/ui/skeleton';
 
@@ -9,10 +10,14 @@
     definition,
     theme,
     label = 'Business flow diagram',
+    errorTitle = 'Business flow could not be rendered',
+    errorHint = 'Ask the agent to correct the flow graph, then run inspector-sync.',
   } = $props<{
     definition: string;
     theme: 'dark' | 'light';
     label?: string;
+    errorTitle?: string;
+    errorHint?: string;
   }>();
 
   let mermaid = $state<typeof import('mermaid').default>();
@@ -112,7 +117,12 @@
 
 <div class="mermaid-diagram" role="img" aria-label={label}>
   {#if renderError}
-    <div class="diagram-state error" role="alert">{renderError}</div>
+    <div class="diagram-state error" role="alert">
+      <TriangleAlert strokeWidth={1.7} aria-hidden="true" />
+      <strong>{errorTitle}</strong>
+      <span>{renderError}</span>
+      <small>{errorHint}</small>
+    </div>
   {:else if svg}
     <div class="diagram-svg">{@html svg}</div>
   {:else}
@@ -166,9 +176,36 @@
   }
 
   .diagram-state.error {
+    display: grid;
     max-width: 46ch;
+    justify-items: center;
+    gap: 6px;
+    padding: 20px;
     color: var(--destructive);
     text-align: center;
+  }
+
+  .diagram-state.error :global(svg) {
+    width: 16px;
+    height: 16px;
+  }
+
+  .diagram-state.error strong {
+    color: var(--foreground);
+    font-family: var(--app-font-sans);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .diagram-state.error span,
+  .diagram-state.error small {
+    line-height: 1.5;
+  }
+
+  .diagram-state.error small {
+    color: var(--muted-foreground);
+    font-family: var(--app-font-sans);
+    font-size: 11px;
   }
 
   .diagram-skeleton {

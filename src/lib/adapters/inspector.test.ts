@@ -40,7 +40,15 @@ describe('snapshotModules', () => {
                     position: 0,
                   },
                 ],
-                edges: [],
+                edges: [
+                  {
+                    id: 'edge-1',
+                    from: 'step-1',
+                    to: 'step-1',
+                    label: null,
+                    mechanism: null,
+                  },
+                ],
               },
               explanation: {
                 headline: 'Reuse one payment identity.',
@@ -107,6 +115,15 @@ describe('snapshotModules', () => {
     expect(modules[0].children?.[0].flows[0].sourceRefs[0]).toMatchObject({
       label: 'src/payments.ts',
       status: 'stale',
+    });
+    expect(modules[0].children?.[0].flows[0].graph.edges[0]).toEqual({
+      id: 'edge-1',
+      from: 'step-1',
+      to: 'step-1',
+      label: undefined,
+      kind: 'control',
+      mechanism: undefined,
+      sourceRefIds: [],
     });
   });
 });

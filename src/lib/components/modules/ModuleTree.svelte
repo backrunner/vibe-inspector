@@ -204,6 +204,8 @@
 <style>
   .tree {
     display: grid;
+    width: max-content;
+    min-width: 100%;
     align-content: start;
     gap: 2px;
     height: 100%;
@@ -247,6 +249,9 @@
 
   .module-row {
     display: flex;
+    width: max-content;
+    min-width: 100%;
+    box-sizing: border-box;
     min-height: 32px;
     align-items: center;
     padding-left: calc(4px + var(--depth) * 18px);
@@ -292,6 +297,7 @@
 
   .tree :global(.module-select) {
     display: flex;
+    width: max-content;
     min-width: 0;
     height: 30px;
     flex: 1;
@@ -314,12 +320,18 @@
     text-align: right;
   }
 
+  .tree :global(.module-select > span) {
+    flex: 0 0 auto;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: nowrap;
+  }
+
   .tree :global(.flow-row) {
     --flow-indent: calc(16px + var(--depth) * 18px);
 
     display: flex;
     width: max-content;
-    max-width: calc(100% - var(--flow-indent));
     min-height: 30px;
     justify-self: start;
     align-items: center;
@@ -350,10 +362,7 @@
   }
 
   .flow-label {
-    min-width: 0;
-    flex: 0 1 auto;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex: 0 0 auto;
     white-space: nowrap;
   }
 

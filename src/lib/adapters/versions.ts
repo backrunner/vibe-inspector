@@ -3,7 +3,9 @@ import type {
   EntityStatus,
   EntityVersion,
   EntityVersionSummary,
+  DiagramKind,
   FlowEdge,
+  FlowEdgeKind,
   FlowNodeKind,
 } from '$domain/entities';
 import { isTauriRuntime } from './tauri';
@@ -46,6 +48,7 @@ export type VersionedFlowSnapshot = {
   revision?: number;
   updatedAt?: string;
   graph: {
+    kind: DiagramKind;
     nodes: Array<{
       id: string;
       label: string;
@@ -100,6 +103,8 @@ function asStringArray(value: unknown): string[] {
 }
 
 const flowNodeKinds: FlowNodeKind[] = ['start', 'action', 'decision', 'external', 'end'];
+const diagramKinds: DiagramKind[] = ['architecture', 'workflow', 'sequence', 'dataflow', 'lifecycle'];
+const flowEdgeKinds: FlowEdgeKind[] = ['control', 'data', 'async', 'error', 'dependency'];
 const entityStatuses: EntityStatus[] = ['draft', 'ready', 'stale', 'needs-review', 'archived'];
 
 function asFlowNodeKind(value: unknown): FlowNodeKind {
@@ -108,6 +113,14 @@ function asFlowNodeKind(value: unknown): FlowNodeKind {
 
 function asEntityStatus(value: unknown): EntityStatus {
   return entityStatuses.includes(value as EntityStatus) ? (value as EntityStatus) : 'draft';
+}
+
+function asDiagramKind(value: unknown): DiagramKind {
+  return diagramKinds.includes(value as DiagramKind) ? (value as DiagramKind) : 'workflow';
+}
+
+function asFlowEdgeKind(value: unknown): FlowEdgeKind {
+  return flowEdgeKinds.includes(value as FlowEdgeKind) ? (value as FlowEdgeKind) : 'control';
 }
 
 export function flowVersionSnapshot(version: EntityVersion): VersionedFlowSnapshot | null {
@@ -126,6 +139,7 @@ export function flowVersionSnapshot(version: EntityVersion): VersionedFlowSnapsh
     revision: asNumber(snapshot.revision),
     updatedAt: typeof snapshot.updatedAt === 'string' ? snapshot.updatedAt : undefined,
     graph: {
+      kind: asDiagramKind(graph?.kind),
       nodes: nodes.flatMap((node) => {
         const record = asRecord(node);
         if (!record || typeof record.id !== 'string') return [];
@@ -148,6 +162,9 @@ export function flowVersionSnapshot(version: EntityVersion): VersionedFlowSnapsh
             from: record.from,
             to: record.to,
             label: typeof record.label === 'string' ? record.label : undefined,
+            kind: asFlowEdgeKind(record.kind),
+            mechanism: typeof record.mechanism === 'string' ? record.mechanism : undefined,
+            sourceRefIds: asStringArray(record.sourceRefIds),
           },
         ];
       }),

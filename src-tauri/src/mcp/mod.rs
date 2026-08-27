@@ -1305,7 +1305,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::inspector::InspectorGraph;
+    use crate::inspector::{FlowNodeKind, InspectorFlowEdge, InspectorFlowNode, InspectorGraph};
 
     struct TestDirectory(PathBuf);
 
@@ -1352,6 +1352,41 @@ mod tests {
         (directory, database, project.id, root)
     }
 
+    fn renderable_graph() -> InspectorGraph {
+        let start_id = uuid::Uuid::now_v7().to_string();
+        let end_id = uuid::Uuid::now_v7().to_string();
+        InspectorGraph {
+            kind: crate::inspector::DiagramKind::Workflow,
+            nodes: vec![
+                InspectorFlowNode {
+                    id: start_id.clone(),
+                    label: "Start".to_string(),
+                    kind: FlowNodeKind::Start,
+                    description: None,
+                    source_ref_ids: vec![],
+                    position: 0,
+                },
+                InspectorFlowNode {
+                    id: end_id.clone(),
+                    label: "Complete".to_string(),
+                    kind: FlowNodeKind::End,
+                    description: None,
+                    source_ref_ids: vec![],
+                    position: 1,
+                },
+            ],
+            edges: vec![InspectorFlowEdge {
+                id: uuid::Uuid::now_v7().to_string(),
+                from: start_id,
+                to: end_id,
+                label: None,
+                kind: crate::inspector::FlowEdgeKind::Control,
+                mechanism: None,
+                source_ref_ids: vec![],
+            }],
+        }
+    }
+
     fn seed_module_with_source(
         database: &InspectorDatabase,
         project_id: &str,
@@ -1383,7 +1418,7 @@ mod tests {
                 name: "Read".to_string(),
                 summary: "Read evidence.".to_string(),
                 status: EntityStatus::Ready,
-                graph: InspectorGraph::default(),
+                graph: renderable_graph(),
             },
             "test",
         )
@@ -1747,8 +1782,7 @@ mod tests {
         let (_directory, database, project_id, _root) = fixture("issue-scope");
         let server = VibeInspectorMcp::new(
             database,
-            McpAuthorization::new("session", ["other-project".to_string()])
-                .expect("authorization"),
+            McpAuthorization::new("session", ["other-project".to_string()]).expect("authorization"),
         );
 
         let denied = server

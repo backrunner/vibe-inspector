@@ -4,6 +4,7 @@ mod codegraph;
 mod codex_history;
 pub mod command_service;
 pub mod error;
+mod flow_graph;
 pub mod fs_broker;
 pub mod inspector;
 pub mod mcp;

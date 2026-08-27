@@ -1,6 +1,7 @@
 <script lang="ts">
   import { RefreshCw, TriangleAlert } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
+  import { ScrollArea } from '$lib/components/ui/scroll-area';
   import { inspectorStore } from '$stores/inspector.svelte';
 
   const store = inspectorStore;
@@ -13,7 +14,17 @@
       <h1 id="restore-error-title">Workspace unavailable</h1>
       <p>VibeInspector could not load the local project registry. No projects were changed.</p>
     </div>
-    <pre>{store.workspaceError}</pre>
+    <ScrollArea
+      class="error-details"
+      orientation="both"
+      viewportProps={{
+        tabindex: 0,
+        role: 'region',
+        'aria-label': 'Workspace error details',
+      }}
+    >
+      <pre>{store.workspaceError}</pre>
+    </ScrollArea>
     <Button size="sm" onclick={() => void store.restoreRegisteredProjects()}>
       <RefreshCw data-icon="inline-start" />Retry
     </Button>
@@ -73,16 +84,22 @@
     line-height: 1.55;
   }
 
-  pre {
+  :global(.error-details) {
     width: 100%;
-    margin: 0;
-    padding: 10px 12px;
-    overflow: auto;
+    max-height: 144px;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    color: var(--status-error);
     background: color-mix(in oklab, var(--muted) 62%, transparent);
     box-shadow: var(--inset-shadow);
+  }
+
+  pre {
+    width: max-content;
+    min-width: 100%;
+    box-sizing: border-box;
+    margin: 0;
+    padding: 10px 12px;
+    color: var(--status-error);
     font-family: var(--app-font-mono);
     font-size: 10.5px;
     line-height: 1.5;

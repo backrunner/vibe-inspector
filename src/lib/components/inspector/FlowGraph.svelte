@@ -1,25 +1,40 @@
 <script lang="ts">
-  import { Maximize2, Waypoints, ZoomIn, ZoomOut } from '@lucide/svelte';
+  import { ChevronDown, Maximize2, Network, Waypoints, ZoomIn, ZoomOut } from '@lucide/svelte';
   import { onMount, tick } from 'svelte';
   import IconButton from '$components/IconButton.svelte';
+  import { Button } from '$lib/components/ui/button';
+  import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
+  import { ScrollArea } from '$lib/components/ui/scroll-area';
+  import * as SegmentedControl from '$lib/components/ui/segmented-control';
   import {
     clampDiagramZoom,
     diagramZoomFromWheel,
     flowGraphToMermaid,
+    relationshipGraph,
+    type RelationshipDirection,
   } from '$lib/adapters/diagram';
-  import type { Flow } from '$domain/entities';
+  import type { Flow, FlowNode } from '$domain/entities';
+  import { normalizedWheelDelta } from '$domain/diagram-viewport';
   import MermaidDiagram from './MermaidDiagram.svelte';
 
   let { flow, theme } = $props<{ flow: Flow; theme: 'dark' | 'light' }>();
   let zoom = $state(1);
   let lastFlowId = $state('');
-  let viewport = $state<HTMLDivElement>();
+  let viewport = $state<HTMLElement | null>(null);
   let viewportWidth = $state(0);
+  let selectedNodeId = $state<string>();
+  let relationshipDirection = $state<RelationshipDirection>('all');
   const hasNodes = $derived(flow.graph.nodes.length > 0);
-  const definition = $derived(flowGraphToMermaid(flow.graph, 'LR'));
+  const selectedNode = $derived(
+    flow.graph.nodes.find((node: FlowNode) => node.id === selectedNodeId),
+  );
+  const visibleGraph = $derived(
+    relationshipGraph(flow.graph, selectedNodeId, relationshipDirection),
+  );
+  const definition = $derived(flowGraphToMermaid(visibleGraph, 'LR'));
   const diagramWidth = $derived.by(() => {
     if (!viewportWidth) return undefined;
-    const readableWidth = Math.max(viewportWidth, flow.graph.nodes.length * 120);
+    const readableWidth = Math.max(viewportWidth, visibleGraph.nodes.length * 120);
     return Math.round(readableWidth * zoom);
   });
 
@@ -51,28 +66,32 @@
     viewport.scrollLeft = contentOffset * (clampedZoom / previousZoom) - pointerOffset;
   }
 
-  function normalizedWheelDelta(event: WheelEvent): number {
-    if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16;
-    if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-      return event.deltaY * (viewport?.clientHeight ?? 1);
-    }
-    return event.deltaY;
-  }
-
   function handleWheel(event: WheelEvent) {
     if (!event.ctrlKey && (event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)))
       return;
     event.preventDefault();
     void setZoom(
-      diagramZoomFromWheel(zoom, normalizedWheelDelta(event), event.ctrlKey),
+      diagramZoomFromWheel(
+        zoom,
+        normalizedWheelDelta(event.deltaY, event.deltaMode, viewport?.clientHeight ?? 1),
+        event.ctrlKey,
+      ),
       event.clientX,
     );
   }
 
   $effect(() => {
     const currentFlowId = flow.id;
-    if (lastFlowId && currentFlowId !== lastFlowId) zoom = 1;
+    if (lastFlowId && currentFlowId !== lastFlowId) {
+      zoom = 1;
+      selectedNodeId = undefined;
+      relationshipDirection = 'all';
+    }
     lastFlowId = currentFlowId;
+  });
+
+  $effect(() => {
+    if (selectedNodeId && !selectedNode) selectedNodeId = undefined;
   });
 </script>
 
@@ -84,6 +103,42 @@
     </div>
     {#if hasNodes}
       <div class="controls">
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <Button {...props} variant="ghost" size="xs" class="relationship-trigger">
+                <Network class="size-3.5" strokeWidth={1.7} aria-hidden="true" />
+                <span>{selectedNode?.label ?? 'Relationships'}</span>
+                <ChevronDown class="size-3" strokeWidth={1.8} aria-hidden="true" />
+              </Button>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content align="end" class="node-menu">
+            <DropdownMenu.Item
+              disabled={!selectedNodeId}
+              onclick={() => (selectedNodeId = undefined)}>All steps</DropdownMenu.Item
+            >
+            <DropdownMenu.Separator />
+            {#each flow.graph.nodes as node (node.id)}
+              <DropdownMenu.Item
+                disabled={node.id === selectedNodeId}
+                onclick={() => (selectedNodeId = node.id)}>{node.label}</DropdownMenu.Item
+              >
+            {/each}
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+        {#if selectedNodeId}
+          <SegmentedControl.Root aria-label="Relationship direction">
+            {#each ['incoming', 'all', 'outgoing'] as direction}
+              <SegmentedControl.Item
+                selected={relationshipDirection === direction}
+                onclick={() => (relationshipDirection = direction as RelationshipDirection)}
+              >
+                {direction === 'incoming' ? 'In' : direction === 'outgoing' ? 'Out' : 'All'}
+              </SegmentedControl.Item>
+            {/each}
+          </SegmentedControl.Root>
+        {/if}
         <IconButton label="Zoom out" icon={ZoomOut} onclick={() => void setZoom(zoom - 0.1)} />
         <span>{Math.round(zoom * 100)}%</span>
         <IconButton label="Zoom in" icon={ZoomIn} onclick={() => void setZoom(zoom + 0.1)} />
@@ -92,7 +147,16 @@
     {/if}
   </header>
 
-  <div bind:this={viewport} class="viewport">
+  <ScrollArea
+    bind:viewportRef={viewport}
+    class="viewport"
+    orientation="both"
+    viewportProps={{
+      tabindex: 0,
+      role: 'region',
+      'aria-label': `${flow.name} business flow canvas`,
+    }}
+  >
     {#if hasNodes}
       <div class="diagram-scale" style:width={diagramWidth ? `${diagramWidth}px` : '100%'}>
         <MermaidDiagram {definition} {theme} label={`${flow.name} business flow`} />
@@ -100,11 +164,11 @@
     {:else}
       <div class="graph-empty app-state-fill" role="status">
         <Waypoints class="size-4" strokeWidth={1.7} aria-hidden="true" />
-        <strong>No flow structure</strong>
-        <span>No steps are recorded for this flow yet.</span>
+        <strong>Business flow missing</strong>
+        <span>Ask the agent to add a complete flow graph, then run inspector-sync.</span>
       </div>
     {/if}
-  </div>
+  </ScrollArea>
 </section>
 
 <style>
@@ -163,12 +227,41 @@
     gap: 1px;
   }
 
+  :global(.relationship-trigger) {
+    max-width: 180px;
+  }
+
+  :global(.node-menu) {
+    max-height: min(320px, 60vh);
+    overflow-y: auto;
+  }
+
+  :global(.relationship-trigger > span) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  :global(.controls [data-slot='segmented-control']) {
+    margin-right: 3px;
+    padding: 1px;
+  }
+
+  :global(.controls [data-segmented-control-item]) {
+    min-width: 27px;
+    height: 22px;
+    padding-inline: 5px;
+    font-size: 10px;
+  }
+
   .controls > span {
     width: 34px;
     text-align: center;
   }
 
   .graph-empty {
+    width: 100%;
+    height: 100%;
     min-height: 0;
     gap: 8px;
     color: var(--muted-foreground);
@@ -185,11 +278,13 @@
     line-height: 1.45;
   }
 
-  .viewport {
+  :global(.viewport) {
     min-width: 0;
     min-height: 0;
-    overflow: auto;
     background: var(--diagram-surface);
+  }
+
+  :global(.viewport [data-slot='scroll-area-viewport']) {
     overscroll-behavior: contain;
   }
 

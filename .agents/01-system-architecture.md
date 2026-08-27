@@ -133,3 +133,19 @@ Every entity has `id`, `project_id`, `revision`, `created_at`, `updated_at`, and
 - CodeGraph integration is optional and read-only. It may inspect only `<registered-root>/.codegraph/codegraph.db`, never creates or updates an index, and validates every related path against the registered project root before returning it as ephemeral UI or MCP context (`inspector.source.related`, and the `relatedFiles` field of `inspector.source.locate`). Dependency direction and kind come only from explicit non-containment CodeGraph edges; the app does not infer or persist relationships.
 - Codex history scanning is best-effort and read-only. The first provider opens `~/.codex/state_5.sqlite` read-only, reads only thread identity/path metadata, resolves nested working directories upward to Git/workspace roots, and records parser versions and source paths.
 - Manual collection discovery is bounded and root-marker based. Once a project root is accepted, scanning prunes that subtree so monorepo packages are not registered as unrelated projects.
+
+## 7. Inspection analysis and diagram authoring
+
+Inspector analysis follows an evidence-first pipeline:
+
+```text
+bounded inventory
+  -> source/evidence map
+  -> responsibility and outcome grouping
+  -> typed diagram IR (kind, nodes, semantic edges)
+  -> graph/evidence validation diagnostics
+  -> stable-ID reconciliation and coverage manifest
+  -> renderer adapter (Mermaid in the desktop UI)
+```
+
+The durable model stores diagram meaning, never renderer coordinates. Every flow is classified as architecture, workflow, sequence, dataflow, or lifecycle. Authors choose one clear main path, keep roughly 6-12 primary nodes, make decision branches explicit, and use domain responsibilities rather than directory structure as module boundaries. Each relationship declares its kind, mechanism, and direct source reference IDs; labels and file proximity are not evidence of runtime causality. A render validation failure is returned as a structured diagnostic with a stable code, subject, evidence, and supported fixes so an agent can repair and retry without deleting the flow. Sync compares stable node/edge/evidence identities and reports graph or evidence deltas separately from module/flow renames.

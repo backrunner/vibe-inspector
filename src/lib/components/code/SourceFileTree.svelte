@@ -43,6 +43,7 @@
   import { tick } from 'svelte';
   import { ChevronRight, FileCode2, Folder, FolderOpen } from '@lucide/svelte';
   import { Button } from '$lib/components/ui/button';
+  import { ScrollArea } from '$lib/components/ui/scroll-area';
   import { cn } from '$lib/utils.js';
   import type { SourceRef } from '$domain/entities';
   import {
@@ -213,7 +214,15 @@
 
 <aside class="source-tree" aria-label="Referenced files">
   <header><strong>Files</strong><span>{fileCount}</span></header>
-  <div class="tree-scroll">
+  <ScrollArea
+    class="tree-scroll"
+    orientation="both"
+    viewportProps={{
+      tabindex: 0,
+      role: 'region',
+      'aria-label': 'Referenced source files',
+    }}
+  >
     {#if visibleNodes.length === 0}
       <div class="source-tree-empty app-state-fill">
         <FileCode2 class="size-4" strokeWidth={1.7} aria-hidden="true" />
@@ -303,7 +312,7 @@
         {/each}
       </div>
     {/if}
-  </div>
+  </ScrollArea>
 </aside>
 
 <style>
@@ -350,12 +359,9 @@
     font-size: 10px;
   }
 
-  .tree-scroll {
-    display: flex;
+  :global(.tree-scroll) {
     min-height: 0;
     flex: 1;
-    overflow: auto;
-    scrollbar-width: thin;
   }
 
   .source-tree-empty {

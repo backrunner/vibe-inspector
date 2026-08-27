@@ -61,9 +61,7 @@ impl IssueStatus {
             "open" => Ok(Self::Open),
             "resolved" => Ok(Self::Resolved),
             "wontfix" => Ok(Self::Wontfix),
-            other => Err(AppError::Database(format!(
-                "unknown issue status {other}"
-            ))),
+            other => Err(AppError::Database(format!("unknown issue status {other}"))),
         }
     }
 }
@@ -271,9 +269,7 @@ impl InspectorDatabase {
             ensure_flow_in_module(&transaction, &current.module_id, flow_id)?;
         }
         let resolved_at = match (current.status, status) {
-            (IssueStatus::Open, IssueStatus::Resolved | IssueStatus::Wontfix) => {
-                Some(now.clone())
-            }
+            (IssueStatus::Open, IssueStatus::Resolved | IssueStatus::Wontfix) => Some(now.clone()),
             (IssueStatus::Resolved | IssueStatus::Wontfix, IssueStatus::Open) => None,
             _ => current.resolved_at.clone(),
         };

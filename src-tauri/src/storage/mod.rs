@@ -21,7 +21,7 @@ use uuid::Uuid;
 
 use crate::{error::AppError, project_registry::RegisteredProject};
 
-use migrations::{MIGRATION_1, MIGRATION_2, MIGRATION_3, SCHEMA_VERSION};
+use migrations::{MIGRATION_1, MIGRATION_2, MIGRATION_3, MIGRATION_4, SCHEMA_VERSION};
 
 const DATABASE_FILE: &str = "inspector.sqlite3";
 const BACKUP_DIRECTORY: &str = "backups";
@@ -118,7 +118,13 @@ impl InspectorDatabase {
         if had_existing_database && current < SCHEMA_VERSION {
             self.create_migration_backup(&connection, current)?;
         }
-        migrate(&mut connection)
+        migrate(&mut connection)?;
+        drop(connection);
+        // Data-level compensation for pre-v4 flow graphs that predate the
+        // renderable validation; idempotent and also covers databases already
+        // at SCHEMA_VERSION written by builds without that enforcement.
+        self.repair_non_renderable_flows()?;
+        Ok(())
     }
 
     pub fn migration_backups(&self) -> Result<Vec<PathBuf>, AppError> {
@@ -495,6 +501,9 @@ fn migrate(connection: &mut Connection) -> Result<(), AppError> {
     if current < 3 {
         apply_migration(connection, 3, MIGRATION_3)?;
     }
+    if current < 4 {
+        apply_migration(connection, 4, MIGRATION_4)?;
+    }
     Ok(())
 }
 
@@ -703,6 +712,7 @@ mod tests {
             created_at: now.clone(),
             updated_at: now.clone(),
             graph: InspectorGraph {
+                kind: crate::inspector::DiagramKind::Workflow,
                 nodes: vec![
                     InspectorFlowNode {
                         id: start_id.clone(),
@@ -726,6 +736,9 @@ mod tests {
                     from: start_id,
                     to: end_id,
                     label: Some("validated".to_string()),
+                    kind: crate::inspector::FlowEdgeKind::Control,
+                    mechanism: None,
+                    source_ref_ids: vec![],
                 }],
             },
             explanation: Some(InspectorExplanation {
@@ -920,9 +933,11 @@ mod tests {
             )
             .expect("v3 tables");
         let module_name: String = connection
-            .query_row("SELECT name FROM modules WHERE id = 'module-1'", [], |row| {
-                row.get(0)
-            })
+            .query_row(
+                "SELECT name FROM modules WHERE id = 'module-1'",
+                [],
+                |row| row.get(0),
+            )
             .expect("module survives upgrade");
         assert_eq!(table_count, 2);
         assert_eq!(module_name, "Core");
@@ -932,6 +947,84 @@ mod tests {
         assert_eq!(backups.len(), 1);
         let backup = Connection::open(&backups[0]).expect("open migration backup");
         assert_eq!(schema_version(&backup).expect("backup schema"), 2);
+    }
+
+    #[test]
+    fn migration_four_archives_non_renderable_legacy_flows() {
+        let directory = TestDirectory::new("migration-v4-repair");
+        let database = InspectorDatabase::new(directory.path().join(DATABASE_FILE));
+        let mut connection = database.connect().expect("connect");
+        connection
+            .execute_batch(
+                "CREATE TABLE schema_migrations (
+                    version INTEGER PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                );",
+            )
+            .expect("create migration table");
+        apply_migration(&mut connection, 1, MIGRATION_1).expect("apply v1");
+        apply_migration(&mut connection, 2, MIGRATION_2).expect("apply v2");
+        apply_migration(&mut connection, 3, MIGRATION_3).expect("apply v3");
+        connection
+            .execute_batch(
+                "INSERT INTO projects (id, name, root_path, status, source, revision, created_at, updated_at)
+                 VALUES ('project-1', 'Fixture', '/tmp/fixture-v4-repair', 'ready', 'manual', 1, '1', '1');
+                 INSERT INTO modules (id, project_id, parent_id, name, slug, summary, status, revision, created_at, updated_at)
+                 VALUES ('module-1', 'project-1', NULL, 'Core', 'core', 'Core module.', 'ready', 1, '1', '1');
+                 INSERT INTO flows (id, project_id, module_id, name, summary, status, revision, created_at, updated_at)
+                 VALUES ('flow-legacy', 'project-1', 'module-1', 'Legacy empty flow', 'Written before graph validation.', 'ready', 1, '1', '1');
+                 INSERT INTO flows (id, project_id, module_id, name, summary, status, revision, created_at, updated_at)
+                 VALUES ('flow-valid', 'project-1', 'module-1', 'Valid flow', 'Connected start to end.', 'ready', 1, '1', '1');
+                 INSERT INTO flow_steps (id, flow_id, label, kind, description, position)
+                 VALUES ('step-start', 'flow-valid', 'Load snapshot', 'start', NULL, 0);
+                 INSERT INTO flow_steps (id, flow_id, label, kind, description, position)
+                 VALUES ('step-end', 'flow-valid', 'Commit revision', 'end', NULL, 1);
+                 INSERT INTO flow_edges (id, flow_id, from_step_id, to_step_id, label)
+                 VALUES ('edge-1', 'flow-valid', 'step-start', 'step-end', 'validated');",
+            )
+            .expect("seed v3 data");
+        drop(connection);
+
+        database.initialize().expect("upgrade to v4 with repair");
+
+        let snapshot = database
+            .load_inspector_snapshot("project-1")
+            .expect("load repaired snapshot");
+        crate::flow_graph::validate_renderable_snapshot(&snapshot)
+            .expect("repaired snapshot passes renderable validation");
+        assert_eq!(snapshot.modules[0].flows.len(), 1);
+        assert_eq!(snapshot.modules[0].flows[0].id, "flow-valid");
+
+        let connection = database.connect().expect("connect after upgrade");
+        let (status, archived_at): (String, Option<String>) = connection
+            .query_row(
+                "SELECT status, archived_at FROM flows WHERE id = 'flow-legacy'",
+                [],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .expect("legacy flow row");
+        assert_eq!(status, "archived");
+        assert!(archived_at.is_some());
+        let audit_count: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM mutation_events
+                 WHERE entity_id = 'flow-legacy' AND action = 'archive' AND actor = 'migration'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("repair audit event");
+        assert_eq!(audit_count, 1);
+        drop(connection);
+
+        // Compensation path for databases already at the latest schema version:
+        // the repair pass is idempotent and archives nothing on a clean database.
+        assert_eq!(
+            database
+                .repair_non_renderable_flows()
+                .expect("idempotent repair"),
+            0
+        );
+        database.initialize().expect("repeat initialization");
     }
 
     #[test]
@@ -969,7 +1062,10 @@ mod tests {
         database
             .import_registered_projects(&[project])
             .expect("import project");
-        let snapshot = inspector_snapshot(&project_id);
+        let mut snapshot = inspector_snapshot(&project_id);
+        snapshot.modules[0].flows[0].graph.kind = crate::inspector::DiagramKind::Dataflow;
+        snapshot.modules[0].flows[0].graph.edges[0].kind = crate::inspector::FlowEdgeKind::Async;
+        snapshot.modules[0].flows[0].graph.edges[0].mechanism = Some("event bus".to_string());
 
         let committed = database
             .commit_inspector_snapshot(&snapshot, 1, "test", "inspector-init", "request-1")
@@ -1160,7 +1256,9 @@ mod tests {
         assert_eq!(issue.module_revision, Some(1));
         assert!(issue.resolved_at.is_none());
         assert_eq!(
-            Uuid::parse_str(&issue.id).expect("issue UUID").get_version_num(),
+            Uuid::parse_str(&issue.id)
+                .expect("issue UUID")
+                .get_version_num(),
             7
         );
 
@@ -1269,7 +1367,10 @@ mod tests {
             .expect("list after archive")
             .is_empty());
         assert_eq!(
-            database.get_issue(&issue.id).expect("get archived").archived_at,
+            database
+                .get_issue(&issue.id)
+                .expect("get archived")
+                .archived_at,
             archived.archived_at
         );
         assert!(matches!(
@@ -1370,6 +1471,60 @@ mod tests {
             .expect("empty snapshot")
             .modules
             .is_empty());
+    }
+
+    #[test]
+    fn inspector_snapshot_rejects_module_hierarchies_deeper_than_three_levels() {
+        let directory = TestDirectory::new("inspector-depth");
+        let project_root = directory.path().join("project");
+        fs::create_dir(&project_root).expect("create project root");
+        let project = registered_project(&project_root);
+        let project_id = project.id.to_string();
+        let database = InspectorDatabase::new(directory.path().join(DATABASE_FILE));
+        database.initialize().expect("initialize");
+        database
+            .import_registered_projects(&[project])
+            .expect("import project");
+        let mut snapshot = inspector_snapshot(&project_id);
+        let root_id = snapshot.modules[1].id.clone();
+        let level_two_id = Uuid::now_v7().to_string();
+        let level_three_id = Uuid::now_v7().to_string();
+        let now = timestamp();
+        snapshot.modules[0].parent_id = Some(level_three_id.clone());
+        snapshot.modules.push(InspectorModule {
+            id: level_two_id.clone(),
+            project_id: project_id.clone(),
+            parent_id: Some(root_id),
+            name: "Level two".to_string(),
+            slug: "level-two".to_string(),
+            summary: "Second hierarchy level.".to_string(),
+            status: EntityStatus::Ready,
+            revision: 1,
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            flows: vec![],
+        });
+        snapshot.modules.push(InspectorModule {
+            id: level_three_id,
+            project_id: project_id.clone(),
+            parent_id: Some(level_two_id),
+            name: "Level three".to_string(),
+            slug: "level-three".to_string(),
+            summary: "Third hierarchy level.".to_string(),
+            status: EntityStatus::Ready,
+            revision: 1,
+            created_at: now.clone(),
+            updated_at: now,
+            flows: vec![],
+        });
+
+        let error = database
+            .commit_inspector_snapshot(&snapshot, 1, "test", "inspector-init", "request-depth")
+            .expect_err("fourth hierarchy level must fail");
+        assert!(matches!(
+            error,
+            AppError::Validation(message) if message.contains("exceeds three levels")
+        ));
     }
 
     #[test]

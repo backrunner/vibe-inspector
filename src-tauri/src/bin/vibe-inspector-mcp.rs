@@ -28,8 +28,9 @@ fn ensure_tray_for_stdio_session() {
     let outcome = std::env::current_exe()
         .map_err(TrayError::from)
         .and_then(|current| {
-            resolve_tray_executable(&current)
-                .ok_or_else(|| TrayError::Config("tray helper executable was not found".to_string()))
+            resolve_tray_executable(&current).ok_or_else(|| {
+                TrayError::Config("tray helper executable was not found".to_string())
+            })
         })
         .and_then(|executable| ensure_tray_running_unless_quit(&paths, &executable));
     let event = match outcome {

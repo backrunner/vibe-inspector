@@ -54,7 +54,17 @@
         <span class="font-mono">{totalFlowCount} {totalFlowCount === 1 ? 'flow' : 'flows'}</span>
       </div>
 
-      <ScrollArea class="min-h-0 flex-1"><ModuleTree /></ScrollArea>
+      <ScrollArea
+        class="min-h-0 flex-1"
+        orientation="both"
+        viewportProps={{
+          tabindex: 0,
+          role: 'region',
+          'aria-label': 'Repository architecture tree',
+        }}
+      >
+        <ModuleTree />
+      </ScrollArea>
     </div>
   {/if}
 </aside>
@@ -125,8 +135,8 @@
     --module-empty-chrome-offset: 136px;
 
     display: flex;
-    width: 280px;
-    min-width: 280px;
+    width: 100%;
+    min-width: 0;
     height: 100%;
     flex-direction: column;
   }
@@ -134,12 +144,5 @@
   .rail-mode-collapsed {
     width: 48px;
     min-width: 48px;
-  }
-
-  @media (max-width: 1200px) {
-    .rail-mode-expanded {
-      width: 252px;
-      min-width: 252px;
-    }
   }
 </style>

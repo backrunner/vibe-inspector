@@ -25,8 +25,8 @@ Design dials: `DESIGN_VARIANCE=4`, `MOTION_INTENSITY=3`, `VISUAL_DENSITY=8`.
 - Reserve a `38px` overlay titlebar at the top of the webview. It contains the centered application title and the global theme action; the top-left traffic-light area stays free of app controls.
 - Do not repeat the application brand in the project rail or add a second full-width page titlebar below the system titlebar. Project/module context belongs with the selected flow heading.
 - Project rail: `216px`, collapsible to `56px`.
-- Module rail: `280px`, collapsible to `48px`.
-- Inspector: `minmax(0, 1fr)` with independently scrolling content.
+- Module rail: `280px` initially, user-resizable from `220px` to `420px`, and collapsible to `48px`.
+- Inspector: `minmax(560px, 1fr)` with independently scrolling content. The Architecture/Inspector separator supports pointer drag plus Arrow, Shift+Arrow, Home, and End keyboard resizing and preserves the chosen width locally.
 - The inspector has no overview/code tabs. It is divided vertically into an upper architecture band and a lower source evidence band.
 - The upper band contains one Mermaid diagram surface and one un-nested rationale panel.
 - The lower band contains one `220-240px` file rail and a read-only Monaco surface; the minimum-width desktop breakpoint may reduce the rail to `200px`.
@@ -108,14 +108,17 @@ Do not recreate a shadcn control inside a feature directory. Do not put VibeInsp
 - Respect `prefers-reduced-motion`; ordinary transitions stay within 120-180ms.
 - Rail expansion uses a 260ms grid-track transition with a short opacity/translate content reveal. Reduced motion removes both transitions.
 - Inline errors remain next to the affected scope; toast is only for transient confirmation.
+- Every overflowing non-code surface uses the shared ScrollArea edge shadows to reveal additional content in each available scroll direction. Shadows disappear at the corresponding boundary and must not intercept pointer input.
 
 ## 7. Diagram and editor
 
 - Mermaid is the only flow renderer. Domain entities keep renderer-neutral nodes and edges; the adapter generates safe Mermaid syntax with generated node aliases and escaped labels.
+- Every leaf module has at least one renderable business flow. Invalid graphs surface the render error and direct the agent to correct and retry them; an absent flow remains a centered empty state with the same recovery direction.
 - Mermaid uses `securityLevel: 'strict'`, loads dynamically in the browser, and re-renders when the application theme changes.
 - Diagram surfaces, nodes, borders, labels, and edges use the Zinc diagram tokens in `src/app.css`. Blue is not used as a general edge color.
 - The diagram has compact zoom controls, no ornamental legend, and may scroll horizontally when a narrow window cannot fit the graph.
 - The rationale is readable at `45-60ch` and explains architectural tradeoffs, not implementation narration.
+- Rationale confidence sits at the trailing edge of the rationale title row so it remains scannable without interrupting the body.
 - Rationale body text is at least `12px` in the desktop baseline. Confidence and metadata may be smaller, but never determine the reading size.
 - Monaco uses `readOnly` and `domReadOnly`, disables context editing, hides the minimap, and highlights referenced lines.
 - The selected source opens as the complete file within the desktop read limit; persisted source ranges are highlighted in place. The editor header reports total lines, while the footer reports the highlighted range and keeps the read-only marker on the right.

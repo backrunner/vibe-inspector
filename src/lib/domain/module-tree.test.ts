@@ -10,7 +10,7 @@ function flow(id: string): Flow {
     status: 'ready',
     owner: 'Test',
     updatedAt: 'now',
-    graph: { nodes: [], edges: [] },
+    graph: { kind: 'workflow', nodes: [], edges: [] },
     explanation: null,
     sourceRefs: [],
   };

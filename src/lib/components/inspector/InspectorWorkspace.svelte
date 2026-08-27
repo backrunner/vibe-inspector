@@ -17,13 +17,14 @@
   import SourceFileTree from '$components/code/SourceFileTree.svelte';
   import SourceViewerSkeleton from '$components/code/SourceViewerSkeleton.svelte';
   import FlowGraph from './FlowGraph.svelte';
+  import ArchitectureGraph from './ArchitectureGraph.svelte';
   import InspectorSkeleton from './InspectorSkeleton.svelte';
   import { inspectorStore } from '$stores/inspector.svelte';
 
   const store = inspectorStore;
   const flow = $derived(store.selectedFlow);
   const sourceRef = $derived(store.selectedSourceRef);
-  let overviewPanel = $state<'flow' | 'rationale'>('flow');
+  let overviewPanel = $state<'architecture' | 'flow' | 'rationale'>('flow');
   let skeletonVisible = $state(false);
 
   // The empty state tells the user how to bootstrap inspector data. Each
@@ -112,7 +113,11 @@
               onclick={() => void store.openHistory()}
             />
             <span class="issues-action">
-              <IconButton label="Issues" icon={CircleAlert} onclick={() => void store.openIssues()} />
+              <IconButton
+                label="Issues"
+                icon={CircleAlert}
+                onclick={() => void store.openIssues()}
+              />
               {#if store.openIssueCount > 0}
                 <span class="issue-count" aria-label={`${store.openIssueCount} open issues`}
                   >{store.openIssueCount}</span
@@ -123,7 +128,12 @@
         </section>
 
         <section class="overview-section" data-panel={overviewPanel} aria-label="Flow overview">
-          <SegmentedControl.Root class="overview-toggle" aria-label="Flow overview panel">
+          <SegmentedControl.Root class="overview-toggle" aria-label="Inspector overview panel">
+            <SegmentedControl.Item
+              class="min-w-[92px]"
+              selected={overviewPanel === 'architecture'}
+              onclick={() => (overviewPanel = 'architecture')}>Architecture</SegmentedControl.Item
+            >
             <SegmentedControl.Item
               class="min-w-[72px]"
               selected={overviewPanel === 'flow'}
@@ -137,20 +147,26 @@
           </SegmentedControl.Root>
 
           <div class="flow-panel">
-            <FlowGraph {flow} theme={store.theme} />
+            {#if overviewPanel === 'architecture'}
+              <ArchitectureGraph
+                modules={store.selectedProject?.modules ?? []}
+                selectedModuleId={store.selectedModuleId}
+                theme={store.theme}
+              />
+            {:else}
+              <FlowGraph {flow} theme={store.theme} />
+            {/if}
           </div>
 
           <aside class="rationale" aria-label="Design rationale">
             <header>
               <span class="rationale-icon"><Lightbulb class="size-3.5" strokeWidth={1.8} /></span>
-              <div>
-                <strong>Design rationale</strong>
-                <span
-                  >{flow.explanation
-                    ? `${Math.round(flow.explanation.confidence * 100)}% confidence`
-                    : 'Not documented'}</span
-                >
-              </div>
+              <strong>Design rationale</strong>
+              <span class="rationale-confidence"
+                >{flow.explanation
+                  ? `${Math.round(flow.explanation.confidence * 100)}% confidence`
+                  : 'Not documented'}</span
+              >
             </header>
             <ScrollArea
               class="min-h-0 flex-1"
@@ -250,6 +266,30 @@
           </div>
         </section>
       </div>
+    {:else if store.selectedProject && store.inspectorStatus === 'ready' && !flow}
+      <div class="architecture-only" transition:fade={{ duration: 150 }}>
+        <section class="flow-heading">
+          <div class="min-w-0">
+            <div class="flow-context">
+              <span class="truncate">{store.selectedProject.name}</span>
+              <ChevronRight class="size-3 shrink-0" />
+              <strong class="truncate">{store.selectedModule?.name ?? 'Module architecture'}</strong>
+            </div>
+            <h1>Module architecture</h1>
+            <p>
+              This view maps responsibility boundaries and containment. Select a business flow in the
+              module tree to inspect its runtime path.
+            </p>
+          </div>
+        </section>
+        <div class="architecture-only-panel">
+          <ArchitectureGraph
+            modules={store.selectedProject.modules}
+            selectedModuleId={store.selectedModuleId}
+            theme={store.theme}
+          />
+        </div>
+      </div>
     {:else if store.selectedProject && store.inspectorStatus === 'loading'}
       {#if skeletonVisible}
         <div class="skeleton-pane" transition:fade={{ duration: 150 }}>
@@ -270,8 +310,8 @@
         <h1>No inspector data yet</h1>
         {#if inspectorInitHint}
           <p>
-            Run <code>{inspectorInitHint.command}</code> in {inspectorInitHint.agent} for this
-            project, then return here to inspect the result.
+            Run <code>{inspectorInitHint.command}</code> in {inspectorInitHint.agent} for this project,
+            then return here to inspect the result.
           </p>
         {:else}
           <p>
@@ -325,6 +365,24 @@
     gap: 12px;
     overflow: hidden;
     padding: 16px 20px;
+  }
+
+  .architecture-only {
+    display: grid;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    overflow: hidden;
+    padding: 16px 20px;
+  }
+
+  .architecture-only-panel {
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .architecture-only-panel :global(.architecture-graph) {
+    height: 100%;
   }
 
   .empty-inspector {
@@ -445,27 +503,38 @@
   }
 
   .overview-section {
+    position: relative;
     display: grid;
     min-width: 0;
     min-height: 0;
     grid-template-columns: minmax(0, 1fr) 400px;
+    grid-template-rows: 30px minmax(0, 1fr);
     gap: 12px;
   }
 
   :global([data-slot='segmented-control'].overview-toggle) {
-    display: none;
+    display: inline-flex;
+    grid-column: 1;
+    grid-row: 1;
+    justify-self: start;
+    align-self: start;
   }
 
   .flow-panel {
+    grid-column: 1;
+    grid-row: 2;
     min-width: 0;
     min-height: 0;
   }
 
-  .flow-panel :global(.graph) {
+  .flow-panel :global(.graph),
+  .flow-panel :global(.architecture-graph) {
     height: 100%;
   }
 
   .rationale {
+    grid-column: 2;
+    grid-row: 1 / -1;
     display: flex;
     min-width: 0;
     min-height: 0;
@@ -478,9 +547,10 @@
 
   .rationale > header {
     position: relative;
-    display: flex;
+    display: grid;
     min-height: 46px;
     flex: 0 0 46px;
+    grid-template-columns: 28px minmax(0, 1fr) auto;
     align-items: center;
     gap: 9px;
     padding: 0 12px;
@@ -510,21 +580,25 @@
     box-shadow: var(--control-shadow);
   }
 
-  .rationale > header > div {
-    display: grid;
-    gap: 1px;
-  }
-
   .rationale > header strong {
+    min-width: 0;
+    overflow: hidden;
     font-size: 13px;
     font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
-  .rationale > header span,
+  .rationale-confidence,
   .source-count {
     color: var(--muted-foreground);
     font-family: var(--app-font-mono);
     font-size: 10.5px;
+  }
+
+  .rationale-confidence {
+    justify-self: end;
+    white-space: nowrap;
   }
 
   .rationale-content {
@@ -717,11 +791,6 @@
       gap: 8px;
     }
 
-    :global([data-slot='segmented-control'].overview-toggle) {
-      display: inline-flex;
-      justify-self: end;
-    }
-
     .flow-panel,
     .rationale {
       grid-row: 2;
@@ -729,6 +798,7 @@
     }
 
     .overview-section[data-panel='flow'] .rationale,
+    .overview-section[data-panel='architecture'] .rationale,
     .overview-section[data-panel='rationale'] .flow-panel {
       display: none;
     }

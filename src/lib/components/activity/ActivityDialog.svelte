@@ -7,6 +7,22 @@
   import { inspectorStore } from '$stores/inspector.svelte';
 
   const store = inspectorStore;
+
+  function formatCoverage(value: string | undefined): string {
+    if (!value) return '';
+    try {
+      const coverage = JSON.parse(value) as { inspectedFiles?: number; totalFiles?: number };
+      if (
+        typeof coverage.inspectedFiles === 'number' &&
+        typeof coverage.totalFiles === 'number'
+      ) {
+        return ` · ${coverage.inspectedFiles}/${coverage.totalFiles} files`;
+      }
+    } catch {
+      // Ignore malformed historical metadata in the activity stream.
+    }
+    return '';
+  }
 </script>
 
 <Dialog.Root bind:open={store.activityOpen}>
@@ -48,7 +64,7 @@
                   <span class:review={run.status === 'needs-review'} class="status-mark"></span>
                   <div>
                     <strong>{run.command}</strong>
-                    <span>{run.actor}</span>
+                    <span>{run.actor}{formatCoverage(run.coverageJson)}</span>
                   </div>
                   <div class="row-meta">
                     <em>{run.status}</em>

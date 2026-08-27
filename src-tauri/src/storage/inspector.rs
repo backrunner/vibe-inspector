@@ -6,10 +6,11 @@ use uuid::Uuid;
 use crate::{
     command_service::diff::{flow_content_eq, module_own_eq},
     error::AppError,
+    flow_graph::{validate_renderable_flow, validate_renderable_snapshot},
     inspector::{
-        EntityStatus, FlowNodeKind, InspectorExplanation, InspectorFlow, InspectorFlowEdge,
-        InspectorFlowNode, InspectorGraph, InspectorModule, InspectorSnapshot, InspectorSourceRef,
-        Provenance, SourceRefStatus,
+        DiagramKind, EntityStatus, FlowEdgeKind, FlowNodeKind, InspectorExplanation, InspectorFlow,
+        InspectorFlowEdge, InspectorFlowNode, InspectorGraph, InspectorModule, InspectorSnapshot,
+        InspectorSourceRef, Provenance, SourceRefStatus,
     },
 };
 
@@ -80,6 +81,66 @@ impl InspectorDatabase {
         })
     }
 
+    /// Soft-archives active flows whose graphs fail the renderable validation.
+    ///
+    /// Databases written before schema v4 (and v4 databases written by builds that
+    /// did not yet enforce the full graph rules on commit) can hold empty or
+    /// disconnected flows that would otherwise reject every later snapshot commit.
+    /// The pass is idempotent: archived flows are never reloaded, so a clean
+    /// database repairs nothing. It runs on every `initialize` so databases
+    /// already at the latest schema version get the same compensation.
+    pub fn repair_non_renderable_flows(&self) -> Result<u64, AppError> {
+        let mut connection = self.connect()?;
+        let project_ids = connection
+            .prepare("SELECT id FROM projects WHERE archived_at IS NULL")
+            .map_err(database_error)?
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(database_error)?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(database_error)?;
+
+        let mut repaired = 0_u64;
+        for project_id in project_ids {
+            let snapshot = self.load_inspector_snapshot(&project_id)?;
+            let invalid = snapshot
+                .modules
+                .iter()
+                .flat_map(|module| module.flows.iter())
+                .filter(|flow| validate_renderable_flow(flow).is_err())
+                .map(|flow| (flow.id.clone(), flow.revision))
+                .collect::<Vec<_>>();
+            if invalid.is_empty() {
+                continue;
+            }
+            let archived_at = timestamp();
+            let transaction = connection.transaction().map_err(database_error)?;
+            for (flow_id, revision) in invalid {
+                transaction
+                    .execute(
+                        "UPDATE flows SET status = 'archived', archived_at = ?1
+                         WHERE id = ?2 AND archived_at IS NULL",
+                        params![archived_at, flow_id],
+                    )
+                    .map_err(database_error)?;
+                record_mutation(
+                    &transaction,
+                    Some(&project_id),
+                    "flow",
+                    &flow_id,
+                    "archive",
+                    "migration",
+                    "schema-migration",
+                    revision,
+                    None,
+                    &archived_at,
+                )?;
+                repaired += 1;
+            }
+            transaction.commit().map_err(database_error)?;
+        }
+        Ok(repaired)
+    }
+
     pub fn commit_inspector_snapshot(
         &self,
         snapshot: &InspectorSnapshot,
@@ -127,7 +188,14 @@ impl InspectorDatabase {
 
         archive_missing_entities(&transaction, snapshot, &committed_at)?;
         for module in ordered_modules(snapshot)? {
-            record_module_version(&transaction, module, actor, source, request_id, &committed_at)?;
+            record_module_version(
+                &transaction,
+                module,
+                actor,
+                source,
+                request_id,
+                &committed_at,
+            )?;
             upsert_module(&transaction, module)?;
         }
         for module in &snapshot.modules {
@@ -216,7 +284,7 @@ fn load_flows(
 ) -> Result<Vec<InspectorFlow>, AppError> {
     let mut statement = connection
         .prepare(
-            "SELECT id, name, summary, status, revision, created_at, updated_at
+            "SELECT id, name, summary, status, revision, created_at, updated_at, diagram_kind
              FROM flows WHERE module_id = ?1 AND archived_at IS NULL ORDER BY name, id",
         )
         .map_err(database_error)?;
@@ -230,6 +298,7 @@ fn load_flows(
                 row.get::<_, i64>(4)?,
                 row.get::<_, String>(5)?,
                 row.get::<_, String>(6)?,
+                row.get::<_, String>(7)?,
             ))
         })
         .map_err(database_error)?
@@ -239,7 +308,7 @@ fn load_flows(
         .map(|row| {
             let flow_id = row.0;
             Ok(InspectorFlow {
-                graph: load_graph(connection, &flow_id)?,
+                graph: load_graph(connection, &flow_id, parse_diagram_kind(&row.7)?)?,
                 explanation: load_explanation(connection, &flow_id)?,
                 source_refs: load_source_refs(connection, project_id, &flow_id)?,
                 id: flow_id,
@@ -259,6 +328,7 @@ fn load_flows(
 fn load_graph(
     connection: &rusqlite::Connection,
     flow_id: &str,
+    kind: DiagramKind,
 ) -> Result<InspectorGraph, AppError> {
     let mut node_statement = connection
         .prepare(
@@ -296,23 +366,42 @@ fn load_graph(
 
     let mut edge_statement = connection
         .prepare(
-            "SELECT id, from_step_id, to_step_id, label FROM flow_edges
+            "SELECT id, from_step_id, to_step_id, label, kind, mechanism, source_ref_ids_json FROM flow_edges
              WHERE flow_id = ?1 ORDER BY id",
         )
         .map_err(database_error)?;
-    let edges = edge_statement
+    let edge_rows = edge_statement
         .query_map([flow_id], |row| {
-            Ok(InspectorFlowEdge {
-                id: row.get(0)?,
-                from: row.get(1)?,
-                to: row.get(2)?,
-                label: row.get(3)?,
-            })
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, Option<String>>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, Option<String>>(5)?,
+                row.get::<_, String>(6)?,
+            ))
         })
         .map_err(database_error)?
         .collect::<Result<Vec<_>, _>>()
         .map_err(database_error)?;
-    Ok(InspectorGraph { nodes, edges })
+    let edges = edge_rows
+        .into_iter()
+        .map(|row| {
+            Ok(InspectorFlowEdge {
+                id: row.0,
+                from: row.1,
+                to: row.2,
+                label: row.3,
+                kind: FlowEdgeKind::parse(&row.4).ok_or_else(|| {
+                    AppError::Database(format!("unknown flow edge kind {}", row.4))
+                })?,
+                mechanism: row.5,
+                source_ref_ids: serde_json::from_str(&row.6).map_err(database_error)?,
+            })
+        })
+        .collect::<Result<Vec<_>, AppError>>()?;
+    Ok(InspectorGraph { kind, nodes, edges })
 }
 
 fn load_source_refs(
@@ -575,7 +664,8 @@ fn load_stored_flow(
 ) -> Result<Option<InspectorFlow>, AppError> {
     let row = connection
         .query_row(
-            "SELECT project_id, module_id, name, summary, status, revision, created_at, updated_at
+            "SELECT project_id, module_id, name, summary, status, revision, created_at, updated_at,
+                    diagram_kind
              FROM flows WHERE id = ?1",
             [flow_id],
             |row| {
@@ -588,6 +678,7 @@ fn load_stored_flow(
                     row.get::<_, i64>(5)?,
                     row.get::<_, String>(6)?,
                     row.get::<_, String>(7)?,
+                    row.get::<_, String>(8)?,
                 ))
             },
         )
@@ -595,7 +686,7 @@ fn load_stored_flow(
         .map_err(database_error)?;
     row.map(|row| {
         Ok(InspectorFlow {
-            graph: load_graph(connection, flow_id)?,
+            graph: load_graph(connection, flow_id, parse_diagram_kind(&row.8)?)?,
             explanation: load_explanation(connection, flow_id)?,
             source_refs: load_source_refs(connection, &row.0, flow_id)?,
             id: flow_id.to_string(),
@@ -642,11 +733,13 @@ fn upsert_flow(transaction: &Transaction<'_>, flow: &InspectorFlow) -> Result<()
     transaction
         .execute(
             "INSERT INTO flows (
-                id, project_id, module_id, name, summary, status, revision, created_at, updated_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                id, project_id, module_id, name, summary, status, diagram_kind, revision,
+                created_at, updated_at
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
              ON CONFLICT(id) DO UPDATE SET module_id = excluded.module_id, name = excluded.name,
                 summary = excluded.summary, status = excluded.status, revision = excluded.revision,
-                updated_at = excluded.updated_at, archived_at = NULL",
+                diagram_kind = excluded.diagram_kind, updated_at = excluded.updated_at,
+                archived_at = NULL",
             params![
                 flow.id,
                 flow.project_id,
@@ -654,6 +747,7 @@ fn upsert_flow(transaction: &Transaction<'_>, flow: &InspectorFlow) -> Result<()
                 flow.name,
                 flow.summary,
                 flow.status.as_str(),
+                flow.graph.kind.as_str(),
                 revision_to_sql(flow.revision)?,
                 flow.created_at,
                 flow.updated_at,
@@ -686,9 +780,20 @@ fn upsert_flow(transaction: &Transaction<'_>, flow: &InspectorFlow) -> Result<()
     for edge in &flow.graph.edges {
         transaction
             .execute(
-                "INSERT INTO flow_edges (id, flow_id, from_step_id, to_step_id, label)
-                 VALUES (?1, ?2, ?3, ?4, ?5)",
-                params![edge.id, flow.id, edge.from, edge.to, edge.label],
+                "INSERT INTO flow_edges (
+                    id, flow_id, from_step_id, to_step_id, label, kind, mechanism,
+                    source_ref_ids_json
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    edge.id,
+                    flow.id,
+                    edge.from,
+                    edge.to,
+                    edge.label,
+                    edge.kind.as_str(),
+                    edge.mechanism,
+                    serde_json::to_string(&edge.source_ref_ids).map_err(database_error)?,
+                ],
             )
             .map_err(database_error)?;
     }
@@ -852,6 +957,7 @@ fn archive_missing_entities(
 }
 
 fn validate_snapshot(snapshot: &InspectorSnapshot) -> Result<(), AppError> {
+    validate_renderable_snapshot(snapshot)?;
     validate_uuid(&snapshot.project_id)?;
     if snapshot.modules.len() > 1_000 {
         return Err(AppError::Validation("module limit exceeded".to_string()));
@@ -892,7 +998,24 @@ fn validate_snapshot(snapshot: &InspectorSnapshot) -> Result<(), AppError> {
             validate_flow(snapshot, module, flow)?;
         }
     }
-    ordered_modules(snapshot)?;
+    let ordered = ordered_modules(snapshot)?;
+    let mut depths = std::collections::HashMap::with_capacity(ordered.len());
+    for module in ordered {
+        let depth = module
+            .parent_id
+            .as_deref()
+            .and_then(|parent_id| depths.get(parent_id))
+            .copied()
+            .unwrap_or(0usize)
+            + 1;
+        if depth > 3 {
+            return Err(AppError::Validation(format!(
+                "module hierarchy exceeds three levels at module {}",
+                module.id
+            )));
+        }
+        depths.insert(module.id.as_str(), depth);
+    }
     Ok(())
 }
 
@@ -995,6 +1118,11 @@ fn valid_relative_path(value: &str) -> bool {
 fn parse_entity_status(value: &str) -> Result<EntityStatus, AppError> {
     EntityStatus::parse(value)
         .ok_or_else(|| AppError::Database(format!("unknown entity status {value}")))
+}
+
+fn parse_diagram_kind(value: &str) -> Result<DiagramKind, AppError> {
+    DiagramKind::parse(value)
+        .ok_or_else(|| AppError::Database(format!("unknown diagram kind {value}")))
 }
 
 fn usize_from_sql(value: i64) -> Result<usize, AppError> {

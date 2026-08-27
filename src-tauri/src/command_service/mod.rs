@@ -7,6 +7,7 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     error::AppError,
+    flow_graph::{validate_renderable_snapshot, GraphDiagnostic, GraphValidationReport},
     inspector::{InspectorSnapshot, ProvenanceSource},
     storage::InspectorDatabase,
 };
@@ -75,6 +76,24 @@ pub struct RunInspectorCommandInput {
     pub conversation_id: Option<String>,
     pub model: Option<String>,
     pub prompt_hash: Option<String>,
+    #[serde(default)]
+    pub coverage: Option<InspectionCoverage>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct InspectionCoverage {
+    pub total_files: u64,
+    pub inspected_files: u64,
+    #[serde(default)]
+    pub ignored_files: u64,
+    #[serde(default)]
+    pub generated_files: u64,
+    #[serde(default)]
+    pub unreadable_files: Vec<String>,
+    pub source_ref_count: u64,
+    pub completed: bool,
+    pub inventory_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq, JsonSchema)]
@@ -104,6 +123,10 @@ pub struct StructuralSummary {
     pub removed_flows: Vec<String>,
     pub renamed_flows: Vec<String>,
     pub moved_flows: Vec<String>,
+    #[serde(default)]
+    pub changed_graphs: Vec<String>,
+    #[serde(default)]
+    pub changed_evidence: Vec<String>,
 }
 
 impl StructuralSummary {
@@ -116,6 +139,8 @@ impl StructuralSummary {
             || !self.removed_flows.is_empty()
             || !self.renamed_flows.is_empty()
             || !self.moved_flows.is_empty()
+            || !self.changed_graphs.is_empty()
+            || !self.changed_evidence.is_empty()
     }
 
     fn added_count(&self) -> usize {
@@ -135,6 +160,9 @@ pub struct RunInspectorCommandResult {
     pub scope_fingerprint: String,
     pub review_reason: Option<String>,
     pub structural_summary: StructuralSummary,
+    pub coverage: Option<InspectionCoverage>,
+    #[serde(default)]
+    pub graph_warnings: Vec<GraphDiagnostic>,
     pub snapshot: InspectorSnapshot,
 }
 
@@ -143,7 +171,7 @@ pub fn run_inspector_command(
     input: RunInspectorCommandInput,
     actor: &str,
 ) -> Result<RunInspectorCommandResult, AppError> {
-    validate_request(&input, actor)?;
+    let graph_warnings = validate_request(&input, actor)?;
     if let Some(stored) = database.command_run(&input.request_id)? {
         if stored.project_id != input.project_id || stored.command != input.command.as_str() {
             return Err(AppError::Validation(format!(
@@ -193,6 +221,8 @@ pub fn run_inspector_command(
             scope_fingerprint: scope_fingerprint.clone(),
             review_reason: Some(reason),
             structural_summary,
+            coverage: input.coverage.clone(),
+            graph_warnings,
             snapshot,
         };
         save_result(database, &input, actor, &scope_fingerprint, &result)?;
@@ -217,13 +247,18 @@ pub fn run_inspector_command(
         scope_fingerprint: scope_fingerprint.clone(),
         review_reason: None,
         structural_summary,
+        coverage: input.coverage.clone(),
+        graph_warnings,
         snapshot: committed,
     };
     save_result(database, &input, actor, &scope_fingerprint, &result)?;
     Ok(result)
 }
 
-fn validate_request(input: &RunInspectorCommandInput, actor: &str) -> Result<(), AppError> {
+fn validate_request(
+    input: &RunInspectorCommandInput,
+    actor: &str,
+) -> Result<Vec<GraphDiagnostic>, AppError> {
     if input.request_id.trim().is_empty() || input.request_id.len() > 128 {
         return Err(AppError::Validation("invalid requestId".to_string()));
     }
@@ -240,6 +275,78 @@ fn validate_request(input: &RunInspectorCommandInput, actor: &str) -> Result<(),
     if input.proposal.modules.is_empty() {
         return Err(AppError::Validation(
             "an Inspector proposal must contain at least one module".to_string(),
+        ));
+    }
+    validate_coverage(input.coverage.as_ref())?;
+    let graph_report = validate_renderable_snapshot(&input.proposal)?;
+    if input.command == InspectorCommand::InspectorInit {
+        let parent_ids = input
+            .proposal
+            .modules
+            .iter()
+            .filter_map(|module| module.parent_id.as_deref())
+            .collect::<std::collections::HashSet<_>>();
+        if let Some(module) = input
+            .proposal
+            .modules
+            .iter()
+            .find(|module| !parent_ids.contains(module.id.as_str()) && module.flows.is_empty())
+        {
+            return Err(AppError::RenderError(GraphValidationReport::single(
+                &module.id,
+                "module.flow.missing",
+                &format!("leaf module {} ({}) has no business flow. Add at least one renderable flow and retry", module.name, module.id),
+            )));
+        }
+    }
+    Ok(graph_report.diagnostics)
+}
+
+fn validate_coverage(coverage: Option<&InspectionCoverage>) -> Result<(), AppError> {
+    let Some(coverage) = coverage else {
+        return Ok(());
+    };
+    let unique_unreadable = coverage
+        .unreadable_files
+        .iter()
+        .collect::<std::collections::HashSet<_>>();
+    let unreadable_count = u64::try_from(unique_unreadable.len())
+        .map_err(|_| AppError::Validation("coverage unreadable file count overflow".to_string()))?;
+    let accounted = coverage
+        .inspected_files
+        .checked_add(unreadable_count)
+        .and_then(|value| value.checked_add(coverage.ignored_files))
+        .and_then(|value| value.checked_add(coverage.generated_files))
+        .ok_or_else(|| AppError::Validation("coverage file count overflow".to_string()))?;
+    if accounted > coverage.total_files {
+        return Err(AppError::Validation(
+            "coverage accounted files (inspected + ignored + generated + unreadable) exceed totalFiles"
+                .to_string(),
+        ));
+    }
+    if coverage.completed && accounted != coverage.total_files {
+        return Err(AppError::Validation(
+            "completed coverage must account for every in-scope file".to_string(),
+        ));
+    }
+    if coverage.unreadable_files.iter().any(|path| {
+        path.trim().is_empty()
+            || std::path::Path::new(path).is_absolute()
+            || std::path::Path::new(path)
+                .components()
+                .any(|component| matches!(component, std::path::Component::ParentDir))
+    }) {
+        return Err(AppError::Validation(
+            "coverage unreadableFiles must contain repository-relative paths".to_string(),
+        ));
+    }
+    if coverage
+        .inventory_fingerprint
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty() || value.len() > 256)
+    {
+        return Err(AppError::Validation(
+            "invalid coverage inventoryFingerprint".to_string(),
         ));
     }
     Ok(())
@@ -331,6 +438,12 @@ fn save_result(
 ) -> Result<(), AppError> {
     let result_json =
         serde_json::to_string(result).map_err(|error| AppError::Database(error.to_string()))?;
+    let coverage_json = input
+        .coverage
+        .as_ref()
+        .map(serde_json::to_string)
+        .transpose()
+        .map_err(|error| AppError::Database(error.to_string()))?;
     database.save_command_run(
         &input.request_id,
         &input.project_id,
@@ -339,6 +452,7 @@ fn save_result(
         actor,
         result.status.as_str(),
         &result_json,
+        coverage_json.as_deref(),
     )
 }
 
@@ -461,6 +575,7 @@ mod tests {
             created_at: "client".to_string(),
             updated_at: "client".to_string(),
             graph: InspectorGraph {
+                kind: crate::inspector::DiagramKind::Workflow,
                 nodes: vec![
                     InspectorFlowNode {
                         id: start_id.clone(),
@@ -483,6 +598,9 @@ mod tests {
                     id: format!("new:edge:{suffix}"),
                     from: start_id,
                     to: end_id,
+                    kind: crate::inspector::FlowEdgeKind::Control,
+                    mechanism: None,
+                    source_ref_ids: vec![],
                     label: None,
                 }],
             },
@@ -550,19 +668,30 @@ mod tests {
             conversation_id: Some("thread-1".to_string()),
             model: Some("fixture-model".to_string()),
             prompt_hash: Some("prompt-hash".to_string()),
+            coverage: None,
         }
     }
 
     #[test]
     fn init_assigns_uuid_v7_metadata_and_replays_idempotently() {
         let (_directory, database, project_id) = database("init");
-        let input = command_input(
+        let mut input = command_input(
             &project_id,
             InspectorCommand::InspectorInit,
             1,
             proposal(&project_id, 1),
             "request-init",
         );
+        input.coverage = Some(InspectionCoverage {
+            total_files: 4,
+            inspected_files: 2,
+            ignored_files: 1,
+            generated_files: 1,
+            unreadable_files: vec![],
+            source_ref_count: 1,
+            completed: true,
+            inventory_fingerprint: Some("sha256:fixture".to_string()),
+        });
         let committed =
             run_inspector_command(&database, input.clone(), "codex").expect("commit init");
         assert_eq!(committed.status, CommandRunStatus::Committed);
@@ -575,6 +704,14 @@ mod tests {
             7
         );
         assert_eq!(module.revision, 1);
+        let stored = database
+            .command_run("request-init")
+            .expect("stored command")
+            .expect("command run");
+        assert!(stored
+            .coverage_json
+            .as_deref()
+            .is_some_and(|coverage| coverage.contains("inventoryFingerprint")));
         assert_ne!(module.created_at, "client");
         let explanation = module.flows[0].explanation.as_ref().expect("explanation");
         assert_eq!(
@@ -589,6 +726,106 @@ mod tests {
         let replayed = run_inspector_command(&database, input, "codex").expect("replay init");
         assert_eq!(replayed, committed);
         assert_eq!(database.project(&project_id).expect("project").revision, 2);
+    }
+
+    #[test]
+    fn repeat_init_reuses_existing_entities_and_adds_missing_modules() {
+        let (_directory, database, project_id) = database("repeat-init");
+        let initial = run_inspector_command(
+            &database,
+            command_input(
+                &project_id,
+                InspectorCommand::InspectorInit,
+                1,
+                proposal(&project_id, 1),
+                "request-init",
+            ),
+            "codex",
+        )
+        .expect("initial init");
+        let existing_module_id = initial.snapshot.modules[0].id.clone();
+
+        let mut repeated = initial.snapshot;
+        repeated.project_revision = 2;
+        repeated.modules[0].summary = "More precise desktop inspection features.".to_string();
+        let module_id = "new:module:services".to_string();
+        repeated.modules.push(InspectorModule {
+            id: module_id.clone(),
+            project_id: project_id.clone(),
+            parent_id: None,
+            name: "Services".to_string(),
+            slug: "services".to_string(),
+            summary: "Long-running local services.".to_string(),
+            status: EntityStatus::Ready,
+            revision: 1,
+            created_at: "client".to_string(),
+            updated_at: "client".to_string(),
+            flows: vec![new_flow(&project_id, &module_id, "service-health")],
+        });
+
+        let committed = run_inspector_command(
+            &database,
+            command_input(
+                &project_id,
+                InspectorCommand::InspectorInit,
+                2,
+                repeated,
+                "request-repeat-init",
+            ),
+            "codex",
+        )
+        .expect("repeat init");
+
+        assert_eq!(committed.snapshot.modules.len(), 2);
+        assert_eq!(committed.snapshot.modules[0].id, existing_module_id);
+        assert_eq!(committed.snapshot.modules[0].revision, 2);
+        assert_eq!(committed.structural_summary.added_modules, vec!["Services"]);
+    }
+
+    #[test]
+    fn init_rejects_missing_or_unrenderable_business_flows() {
+        let (_directory, database, project_id) = database("init-flow-validation");
+        let mut missing = proposal(&project_id, 1);
+        missing.modules[0].flows.clear();
+        assert!(matches!(
+            run_inspector_command(
+                &database,
+                command_input(
+                    &project_id,
+                    InspectorCommand::InspectorInit,
+                    1,
+                    missing,
+                    "request-missing-flow",
+                ),
+                "codex",
+            ),
+            Err(AppError::RenderError(report))
+                if report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("no business flow"))
+        ));
+
+        let mut disconnected = proposal(&project_id, 1);
+        disconnected.modules[0].flows[0].graph.edges.clear();
+        assert!(matches!(
+            run_inspector_command(
+                &database,
+                command_input(
+                    &project_id,
+                    InspectorCommand::InspectorInit,
+                    1,
+                    disconnected,
+                    "request-unrenderable-flow",
+                ),
+                "codex",
+            ),
+            Err(AppError::RenderError(report))
+                if report
+                    .diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("connected"))
+        ));
     }
 
     #[test]
@@ -795,5 +1032,133 @@ mod tests {
         )
         .expect_err("client UUID must be rejected");
         assert!(matches!(error, AppError::Validation(message) if message.contains("new:")));
+    }
+
+    #[test]
+    fn init_remaps_temporary_edge_evidence_ids() {
+        let (_directory, database, project_id) = database("edge-evidence");
+        let mut proposed = proposal(&project_id, 1);
+        let temporary_source_id = proposed.modules[0].flows[0].source_refs[0].id.clone();
+        assert!(temporary_source_id.starts_with("new:source:"));
+        proposed.modules[0].flows[0].graph.edges[0].source_ref_ids =
+            vec![temporary_source_id.clone()];
+
+        let committed = run_inspector_command(
+            &database,
+            command_input(
+                &project_id,
+                InspectorCommand::InspectorInit,
+                1,
+                proposed,
+                "request-edge-evidence",
+            ),
+            "codex",
+        )
+        .expect("edge evidence with temporary IDs must commit");
+
+        let flow = &committed.snapshot.modules[0].flows[0];
+        let source_id = flow.source_refs[0].id.clone();
+        assert!(Uuid::parse_str(&source_id).is_ok());
+        assert_eq!(flow.graph.edges[0].source_ref_ids, vec![source_id]);
+    }
+
+    #[test]
+    fn structural_summary_deserializes_legacy_command_results() {
+        let legacy = r#"{
+            "addedModules": [],
+            "removedModules": [],
+            "renamedModules": [],
+            "movedModules": [],
+            "addedFlows": [],
+            "removedFlows": [],
+            "renamedFlows": [],
+            "movedFlows": []
+        }"#;
+        let summary: StructuralSummary =
+            serde_json::from_str(legacy).expect("legacy result without changedGraphs fields");
+        assert_eq!(summary, StructuralSummary::default());
+        assert!(!summary.has_changes());
+    }
+
+    #[test]
+    fn graph_and_evidence_changes_count_as_structural_changes() {
+        let (_directory, _database, project_id) = database("graph-change-review");
+        let input = command_input(
+            &project_id,
+            InspectorCommand::InspectorSync,
+            1,
+            proposal(&project_id, 1),
+            "request-graph-change",
+        );
+
+        let mut graph_only = StructuralSummary::default();
+        assert!(!graph_only.has_changes());
+        graph_only.changed_graphs.push("refresh flow".to_string());
+        assert!(graph_only.has_changes());
+        assert_eq!(
+            review_reason(&input, &graph_only).as_deref(),
+            Some("structural changes require explicit acceptance")
+        );
+
+        let mut evidence_only = StructuralSummary::default();
+        evidence_only.changed_evidence.push("refresh flow".to_string());
+        assert!(evidence_only.has_changes());
+        assert!(review_reason(&input, &evidence_only).is_some());
+    }
+
+    #[test]
+    fn committed_results_include_structured_graph_warnings() {
+        let (_directory, database, project_id) = database("graph-warnings");
+        let input = command_input(
+            &project_id,
+            InspectorCommand::InspectorInit,
+            1,
+            proposal(&project_id, 1),
+            "request-warnings",
+        );
+        let committed =
+            run_inspector_command(&database, input.clone(), "codex").expect("commit init");
+        assert!(committed.graph_warnings.iter().any(|diagnostic| {
+            diagnostic.code == "graph.edge.evidence-unverified"
+                && diagnostic.severity == crate::flow_graph::GraphDiagnosticSeverity::Warning
+        }));
+        let serialized = serde_json::to_string(&committed).expect("serialize result");
+        assert!(serialized.contains("\"graphWarnings\""));
+
+        let replayed = run_inspector_command(&database, input, "codex").expect("replay init");
+        assert_eq!(replayed.graph_warnings, committed.graph_warnings);
+    }
+
+    #[test]
+    fn coverage_deduplicates_unreadable_files_before_counting() {
+        let coverage = InspectionCoverage {
+            total_files: 2,
+            inspected_files: 1,
+            ignored_files: 0,
+            generated_files: 0,
+            unreadable_files: vec!["src/locked.rs".to_string(), "src/locked.rs".to_string()],
+            source_ref_count: 0,
+            completed: true,
+            inventory_fingerprint: None,
+        };
+        validate_coverage(Some(&coverage)).expect("duplicate unreadable paths count once");
+    }
+
+    #[test]
+    fn coverage_overflow_error_describes_all_accounted_components() {
+        let coverage = InspectionCoverage {
+            total_files: 2,
+            inspected_files: 1,
+            ignored_files: 1,
+            generated_files: 1,
+            unreadable_files: vec![],
+            source_ref_count: 0,
+            completed: false,
+            inventory_fingerprint: None,
+        };
+        let error = validate_coverage(Some(&coverage)).expect_err("accounted exceeds total");
+        assert!(
+            matches!(error, AppError::Validation(message) if message.contains("inspected + ignored + generated + unreadable"))
+        );
     }
 }

@@ -86,6 +86,7 @@
   );
   --panel-footer-surface: color-mix(in oklab, var(--muted) 28%, var(--card));
   --pane-separation-shadow: 12px 0 24px -22px rgb(24 24 27 / 24%);
+  --scroll-shadow: rgb(24 24 27 / 16%);
   --workspace-panel-surface: color-mix(in oklab, var(--workspace) 64%, transparent);
   --panel-edge: color-mix(in oklab, var(--border) 78%, transparent);
   --panel-divider: color-mix(in oklab, var(--border) 70%, transparent);
@@ -217,6 +218,7 @@
   );
   --panel-footer-surface: color-mix(in oklab, var(--muted) 32%, var(--card));
   --pane-separation-shadow: 14px 0 26px -22px rgb(0 0 0 / 62%);
+  --scroll-shadow: rgb(0 0 0 / 42%);
   --workspace-panel-surface: color-mix(in oklab, var(--workspace) 74%, transparent);
   --panel-edge: color-mix(in oklab, var(--border) 74%, transparent);
   --panel-divider: color-mix(in oklab, var(--border) 68%, transparent);

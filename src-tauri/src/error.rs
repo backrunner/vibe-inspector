@@ -1,6 +1,8 @@
 use serde::Serialize;
 use thiserror::Error;
 
+use crate::flow_graph::GraphValidationReport;
+
 #[derive(Debug, Error, Serialize)]
 #[serde(tag = "code", content = "message", rename_all = "snake_case")]
 pub enum AppError {
@@ -22,6 +24,8 @@ pub enum AppError {
     NotFound(String),
     #[error("The inspector payload is invalid: {0}")]
     Validation(String),
+    #[error("The business flow could not be rendered: {0}")]
+    RenderError(GraphValidationReport),
     #[error("Agent setup failed: {0}")]
     AgentSetup(String),
     #[error("The MCP session is not authorized for: {0}")]

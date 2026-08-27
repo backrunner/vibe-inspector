@@ -55,6 +55,12 @@ pub(super) fn analyze_structure(
                 if previous.module_id != flow.module_id {
                     summary.moved_flows.push(flow.name.clone());
                 }
+                if previous.graph != flow.graph {
+                    summary.changed_graphs.push(flow.name.clone());
+                }
+                if !sources_eq(&previous.source_refs, &flow.source_refs) {
+                    summary.changed_evidence.push(flow.name.clone());
+                }
             }
         }
     }
@@ -454,4 +460,6 @@ fn sort_summary(summary: &mut StructuralSummary) {
     summary.removed_flows.sort();
     summary.renamed_flows.sort();
     summary.moved_flows.sort();
+    summary.changed_graphs.sort();
+    summary.changed_evidence.sort();
 }

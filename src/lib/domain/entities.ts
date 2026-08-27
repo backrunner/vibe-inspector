@@ -17,6 +17,30 @@ export type SourceRef = {
 };
 
 export type FlowNodeKind = 'start' | 'action' | 'decision' | 'external' | 'end';
+export type DiagramKind = 'architecture' | 'workflow' | 'sequence' | 'dataflow' | 'lifecycle';
+export type FlowEdgeKind = 'control' | 'data' | 'async' | 'error' | 'dependency';
+
+export type GraphDiagnosticSeverity = 'error' | 'warning';
+export type GraphDiagnostic = {
+  code: string;
+  severity: GraphDiagnosticSeverity;
+  flowId: string;
+  subject: string;
+  message: string;
+  evidence: Array<{ key: string; value: string }>;
+  supportedFixes: string[];
+};
+export type GraphValidationReport = { diagnostics: GraphDiagnostic[] };
+export type InspectionCoverage = {
+  totalFiles: number;
+  inspectedFiles: number;
+  ignoredFiles: number;
+  generatedFiles: number;
+  unreadableFiles: string[];
+  sourceRefCount: number;
+  completed: boolean;
+  inventoryFingerprint?: string;
+};
 
 export type FlowNode = {
   id: string;
@@ -33,6 +57,9 @@ export type FlowEdge = {
   from: string;
   to: string;
   label?: string;
+  kind?: FlowEdgeKind;
+  mechanism?: string;
+  sourceRefIds?: string[];
 };
 
 export type Provenance = {
@@ -53,7 +80,7 @@ export type Flow = {
   revision?: number;
   owner: string;
   updatedAt: string;
-  graph: { nodes: FlowNode[]; edges: FlowEdge[] };
+  graph: { kind?: DiagramKind; nodes: FlowNode[]; edges: FlowEdge[] };
   explanation: {
     headline: string;
     body: string;
@@ -270,6 +297,7 @@ const inspectorAdapterCode = `export function snapshotModules(snapshot: Inspecto
       owner: flow.explanation?.provenance.source ?? 'Inspector',
       updatedAt: flow.updatedAt,
       graph: {
+        kind: flow.graph.kind ?? 'workflow',
         nodes: flow.graph.nodes.map((node) => ({
           id: node.id,
           label: node.label,
@@ -279,7 +307,13 @@ const inspectorAdapterCode = `export function snapshotModules(snapshot: Inspecto
           x: 0,
           y: 0,
         })),
-        edges: flow.graph.edges,
+        edges: flow.graph.edges.map((edge) => ({
+          ...edge,
+          label: edge.label ?? undefined,
+          kind: edge.kind ?? 'control',
+          mechanism: edge.mechanism ?? undefined,
+          sourceRefIds: edge.sourceRefIds ?? [],
+        })),
       },`;
 
 const sourceTreeCode = `import type { SourceRef } from './entities';
@@ -642,8 +676,8 @@ const inspectorFlow: Flow = {
     {
       id: 'ref-inspector-adapter',
       path: 'src/lib/adapters/inspector.ts',
-      startLine: 88,
-      endLine: 118,
+      startLine: 107,
+      endLine: 171,
       symbol: 'snapshotModules',
       label: 'Typed snapshot mapping into UI state',
       status: 'current',

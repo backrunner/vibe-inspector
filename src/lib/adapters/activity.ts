@@ -8,6 +8,7 @@ export type CommandRun = {
   actor: string;
   status: string;
   resultJson?: string;
+  coverageJson?: string;
   createdAt: string;
   updatedAt: string;
 };

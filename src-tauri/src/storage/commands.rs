@@ -16,6 +16,7 @@ pub struct StoredCommandRun {
     pub actor: String,
     pub status: String,
     pub result_json: Option<String>,
+    pub coverage_json: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -26,7 +27,7 @@ impl InspectorDatabase {
         connection
             .query_row(
                 "SELECT request_id, project_id, command, scope_fingerprint, actor, status,
-                        result_json, created_at, updated_at
+                        result_json, coverage_json, created_at, updated_at
                  FROM command_runs WHERE request_id = ?1",
                 [request_id],
                 map_command_run,
@@ -45,6 +46,7 @@ impl InspectorDatabase {
         actor: &str,
         status: &str,
         result_json: &str,
+        coverage_json: Option<&str>,
     ) -> Result<(), AppError> {
         let connection = self.connect()?;
         let now = timestamp();
@@ -52,10 +54,11 @@ impl InspectorDatabase {
             .execute(
                 "INSERT INTO command_runs (
                     id, request_id, project_id, command, scope_fingerprint, actor, status,
-                    result_json, created_at, updated_at
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)
+                    result_json, coverage_json, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?10)
                  ON CONFLICT(request_id) DO UPDATE SET status = excluded.status,
-                    result_json = excluded.result_json, updated_at = excluded.updated_at",
+                    result_json = excluded.result_json, coverage_json = excluded.coverage_json,
+                    updated_at = excluded.updated_at",
                 params![
                     uuid::Uuid::now_v7().to_string(),
                     request_id,
@@ -65,6 +68,7 @@ impl InspectorDatabase {
                     actor,
                     status,
                     result_json,
+                    coverage_json,
                     now,
                 ],
             )
@@ -83,7 +87,7 @@ impl InspectorDatabase {
         let mut statement = connection
             .prepare(
                 "SELECT request_id, project_id, command, scope_fingerprint, actor, status,
-                        result_json, created_at, updated_at
+                        result_json, coverage_json, created_at, updated_at
                  FROM command_runs WHERE project_id = ?1
                  ORDER BY updated_at DESC, id DESC LIMIT ?2",
             )
@@ -106,7 +110,8 @@ fn map_command_run(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoredCommandRun
         actor: row.get(4)?,
         status: row.get(5)?,
         result_json: row.get(6)?,
-        created_at: row.get(7)?,
-        updated_at: row.get(8)?,
+        coverage_json: row.get(7)?,
+        created_at: row.get(8)?,
+        updated_at: row.get(9)?,
     })
 }
