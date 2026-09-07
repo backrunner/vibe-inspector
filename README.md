@@ -59,7 +59,7 @@ The tray and desktop processes share domain, storage, MCP, discovery, and filesy
 
 - macOS on Apple Silicon
 - Node.js 20 or newer
-- pnpm 11
+- pnpm 12.3.4
 - Stable Rust toolchain with the `aarch64-apple-darwin` target
 - Xcode Command Line Tools
 
