@@ -747,7 +747,7 @@ const projects: Project[] = [
   {
     id: 'project-arcade-commerce',
     name: 'arcade-commerce',
-    rootPath: '~/Projects/arcade-commerce',
+    rootPath: '/Users/demo/Projects/arcade-commerce',
     status: 'syncing',
     branch: 'feat/checkout-retry',
     lastScanAt: '18 min ago',
@@ -788,7 +788,7 @@ const projects: Project[] = [
   {
     id: 'project-atlas',
     name: 'atlas-monorepo',
-    rootPath: '~/Work/atlas-monorepo',
+    rootPath: '/Users/demo/Work/atlas-monorepo',
     status: 'stale',
     branch: 'main',
     lastScanAt: '2 days ago',
